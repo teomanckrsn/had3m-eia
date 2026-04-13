@@ -11,6 +11,7 @@ from rag_engine import RAGEngine
 from debate import debate, get_personality_names, get_persona_color, persona_manager
 from file_manager import FileManager
 from browser_agent import BrowserAgent
+from dev_team import DevProject, dev_team_work, get_team_roles, TEAM_ROLES, analyze_image, _check_model_exists, VISION_MODEL
 from datetime import datetime
 
 
@@ -421,6 +422,171 @@ class BrowserDialog(ctk.CTkToplevel):
         self.destroy()
 
 
+class DevTeamDialog(ctk.CTkToplevel):
+    """Geliştirme ekibi penceresi — kodcu, tasarımcı, tester birlikte çalışır."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("HAD3M-EIA — Geliştirme Ekibi")
+        self.geometry("850x700")
+        self.transient(parent)
+
+        self.project = None
+
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(3, weight=1)
+
+        # === Proje bilgileri ===
+        proj_frame = ctk.CTkFrame(self)
+        proj_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 5))
+        proj_frame.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(proj_frame, text="🏗 Proje", font=ctk.CTkFont(weight="bold")).grid(
+            row=0, column=0, columnspan=3, padx=10, pady=(5, 2), sticky="w"
+        )
+
+        ctk.CTkLabel(proj_frame, text="Ad:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        self.proj_name = ctk.CTkEntry(proj_frame, placeholder_text="ör: e-ticaret-sitesi")
+        self.proj_name.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+
+        ctk.CTkLabel(proj_frame, text="Açıklama:").grid(row=2, column=0, padx=10, pady=5, sticky="w")
+        self.proj_desc = ctk.CTkEntry(proj_frame, placeholder_text="ör: Basit bir ürün listeleme ve sepet sistemi")
+        self.proj_desc.grid(row=2, column=1, columnspan=2, padx=5, pady=5, sticky="ew")
+
+        # === Görev ve ekip seçimi ===
+        task_frame = ctk.CTkFrame(self)
+        task_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=5)
+        task_frame.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(task_frame, text="🎯 Görev", font=ctk.CTkFont(weight="bold")).grid(
+            row=0, column=0, columnspan=2, padx=10, pady=(5, 2), sticky="w"
+        )
+
+        self.task_entry = ctk.CTkEntry(
+            task_frame, placeholder_text="ör: Login sayfası oluştur, responsive olsun", height=40
+        )
+        self.task_entry.grid(row=1, column=0, padx=10, pady=5, sticky="ew")
+
+        # Görsel ekleme
+        img_frame = ctk.CTkFrame(task_frame, fg_color="transparent")
+        img_frame.grid(row=2, column=0, padx=10, pady=5, sticky="w")
+
+        self.btn_add_image = ctk.CTkButton(
+            img_frame, text="🖼 Tasarım Görseli Ekle", width=180, fg_color="#e74c3c",
+            command=self._pick_image
+        )
+        self.btn_add_image.pack(side="left", padx=(0, 10))
+
+        self.image_label = ctk.CTkLabel(img_frame, text="Görsel eklenmedi (opsiyonel)", anchor="w")
+        self.image_label.pack(side="left")
+
+        self.image_path = None
+
+        # Ekip üyeleri seçimi
+        team_frame = ctk.CTkFrame(task_frame, fg_color="transparent")
+        team_frame.grid(row=3, column=0, padx=10, pady=5, sticky="w")
+
+        ctk.CTkLabel(team_frame, text="Ekip:").pack(side="left", padx=(0, 10))
+
+        self.team_vars = {}
+        for role_name, role_info in TEAM_ROLES.items():
+            var = tk.BooleanVar(value=True)
+            self.team_vars[role_name] = var
+            ctk.CTkCheckBox(
+                team_frame, text=f"{role_info['emoji']} {role_name}",
+                variable=var
+            ).pack(side="left", padx=5)
+
+        # Başlat butonu
+        self.btn_start = ctk.CTkButton(
+            task_frame, text="▶ Ekibi Çalıştır", height=35, fg_color="#27ae60",
+            command=self._start_work
+        )
+        self.btn_start.grid(row=4, column=0, padx=10, pady=10)
+
+        # Görsel model durumu
+        vision_status = "✅ Kurulu" if _check_model_exists(VISION_MODEL) else f"❌ Kurulu değil (ollama pull {VISION_MODEL})"
+        ctk.CTkLabel(
+            task_frame, text=f"Görsel model ({VISION_MODEL}): {vision_status}",
+            font=ctk.CTkFont(size=11), text_color="gray"
+        ).grid(row=5, column=0, padx=10, pady=(0, 5), sticky="w")
+
+        # === Durum ===
+        self.status_label = ctk.CTkLabel(self, text="Proje adı ve görev girin, ekibi seçin, çalıştırın.", anchor="w")
+        self.status_label.grid(row=2, column=0, sticky="ew", padx=15, pady=5)
+
+        # === Çıktı alanı ===
+        self.output_frame = ctk.CTkScrollableFrame(self, label_text="Ekip Çıktısı")
+        self.output_frame.grid(row=3, column=0, sticky="nsew", padx=10, pady=(0, 10))
+        self.output_frame.grid_columnconfigure(0, weight=1)
+
+    def _pick_image(self):
+        path = filedialog.askopenfilename(
+            title="Tasarım görseli seç",
+            filetypes=[("Görseller", "*.png *.jpg *.jpeg *.webp *.gif"), ("Tümü", "*.*")],
+        )
+        if path:
+            self.image_path = path
+            self.image_label.configure(text=os.path.basename(path))
+
+    def _add_output(self, role: str, emoji: str, text: str, color: str):
+        frame = ctk.CTkFrame(self.output_frame, fg_color=color, corner_radius=10)
+        frame.grid(sticky="ew", padx=5, pady=3)
+
+        header = ctk.CTkLabel(
+            frame, text=f"{emoji} {role}",
+            font=ctk.CTkFont(weight="bold"), anchor="w", padx=10, pady=(5, 0),
+        )
+        header.pack(fill="x")
+
+        body = ctk.CTkLabel(
+            frame, text=text, wraplength=700, justify="left",
+            anchor="w", padx=10, pady=(2, 8),
+        )
+        body.pack(fill="x")
+
+        self.output_frame._parent_canvas.yview_moveto(1.0)
+
+    def _start_work(self):
+        name = self.proj_name.get().strip()
+        desc = self.proj_desc.get().strip()
+        task = self.task_entry.get().strip()
+
+        if not name or not task:
+            self.status_label.configure(text="❌ Proje adı ve görev gerekli!")
+            return
+
+        selected_team = [r for r, v in self.team_vars.items() if v.get()]
+        if not selected_team:
+            self.status_label.configure(text="❌ En az bir ekip üyesi seçin!")
+            return
+
+        self.project = DevProject(name, desc or task)
+        self.btn_start.configure(state="disabled")
+        self.status_label.configure(text="Ekip çalışıyor...")
+
+        def on_message(role, emoji, text, color):
+            self.after(0, lambda r=role, e=emoji, t=text, c=color: self._add_output(r, e, t, c))
+            self.after(0, lambda: self.status_label.configure(text=f"{emoji} {role} çalışıyor..."))
+
+        def work():
+            try:
+                dev_team_work(
+                    self.project, task, selected_team,
+                    on_message=on_message,
+                    image_path=self.image_path,
+                )
+                self.after(0, lambda: self.status_label.configure(
+                    text=f"✅ Tamamlandı! Dosyalar: {self.project.project_dir}"
+                ))
+            except Exception as e:
+                self.after(0, lambda: self.status_label.configure(text=f"❌ Hata: {e}"))
+            finally:
+                self.after(0, lambda: self.btn_start.configure(state="normal"))
+
+        threading.Thread(target=work, daemon=True).start()
+
+
 class MiniAgentApp(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -444,7 +610,7 @@ class MiniAgentApp(ctk.CTk):
         # === Üst bar ===
         top_frame = ctk.CTkFrame(self)
         top_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 5))
-        top_frame.grid_columnconfigure(5, weight=1)
+        top_frame.grid_columnconfigure(6, weight=1)
 
         self.btn_add = ctk.CTkButton(
             top_frame, text="📂 Dosya Ekle", width=110, command=self._add_files
@@ -475,8 +641,14 @@ class MiniAgentApp(ctk.CTk):
         )
         self.btn_browser.grid(row=0, column=4, padx=5, pady=5)
 
+        self.btn_dev_team = ctk.CTkButton(
+            top_frame, text="💻 Geliştirme", width=110, fg_color="#2ecc71",
+            command=self._open_dev_team
+        )
+        self.btn_dev_team.grid(row=0, column=5, padx=5, pady=5)
+
         self.file_label = ctk.CTkLabel(top_frame, text="Henüz dosya yüklenmedi", anchor="w")
-        self.file_label.grid(row=0, column=5, padx=10, pady=5, sticky="w")
+        self.file_label.grid(row=0, column=6, padx=10, pady=5, sticky="w")
 
         # === Mod seçimi + kişilik seçiciler ===
         mode_frame = ctk.CTkFrame(self)
@@ -553,6 +725,9 @@ class MiniAgentApp(ctk.CTk):
 
     def _open_browser(self):
         BrowserDialog(self)
+
+    def _open_dev_team(self):
+        DevTeamDialog(self)
 
     def _refresh_persona_combos(self):
         names = get_personality_names()
