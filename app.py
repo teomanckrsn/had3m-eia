@@ -10,6 +10,8 @@ import customtkinter as ctk
 from rag_engine import RAGEngine
 from debate import debate, get_personality_names, get_persona_color, persona_manager
 from file_manager import FileManager
+from browser_agent import BrowserAgent
+from datetime import datetime
 
 
 ctk.set_appearance_mode("dark")
@@ -219,11 +221,211 @@ class FileManagerDialog(ctk.CTkToplevel):
             self.history_text.insert("end", f"{i}. {src} → {dest}\n   ({ts})\n\n")
 
 
+class BrowserDialog(ctk.CTkToplevel):
+    """Kontrollü tarayıcı penceresi."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("HAD3M-EIA — Tarayıcı Agent")
+        self.geometry("750x650")
+        self.transient(parent)
+
+        self.agent = BrowserAgent(
+            on_status=self._update_status,
+            on_confirm=self._ask_confirm,
+            on_screenshot=self._show_screenshot,
+        )
+
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(4, weight=1)
+
+        # === Domain yönetimi ===
+        domain_frame = ctk.CTkFrame(self)
+        domain_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 5))
+        domain_frame.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(domain_frame, text="🔒 İzin Verilen Siteler", font=ctk.CTkFont(weight="bold")).grid(
+            row=0, column=0, columnspan=4, padx=10, pady=(5, 2), sticky="w"
+        )
+
+        self.domain_entry = ctk.CTkEntry(domain_frame, placeholder_text="ör: shipstation.com")
+        self.domain_entry.grid(row=1, column=0, columnspan=2, padx=10, pady=5, sticky="ew")
+
+        ctk.CTkButton(domain_frame, text="Ekle", width=60, fg_color="#27ae60",
+                       command=self._add_domain).grid(row=1, column=2, padx=5, pady=5)
+        ctk.CTkButton(domain_frame, text="Çıkar", width=60, fg_color="#c0392b",
+                       command=self._remove_domain).grid(row=1, column=3, padx=5, pady=5)
+
+        self.domain_label = ctk.CTkLabel(domain_frame, text="", anchor="w", wraplength=650)
+        self.domain_label.grid(row=2, column=0, columnspan=4, padx=10, pady=(0, 5), sticky="w")
+        self._refresh_domains()
+
+        # === Görev alanı ===
+        task_frame = ctk.CTkFrame(self)
+        task_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=5)
+        task_frame.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(task_frame, text="🎯 Görev", font=ctk.CTkFont(weight="bold")).grid(
+            row=0, column=0, columnspan=3, padx=10, pady=(5, 2), sticky="w"
+        )
+
+        self.url_entry = ctk.CTkEntry(task_frame, placeholder_text="URL: https://shipstation.com/orders")
+        self.url_entry.grid(row=1, column=0, padx=10, pady=5, sticky="ew")
+
+        ctk.CTkButton(task_frame, text="Git", width=60, command=self._do_goto).grid(
+            row=1, column=1, padx=5, pady=5
+        )
+        ctk.CTkButton(task_frame, text="Screenshot", width=90, fg_color="#2980b9",
+                       command=self._do_screenshot).grid(row=1, column=2, padx=5, pady=5)
+
+        # Tarayıcı kontrol butonları
+        ctrl_frame = ctk.CTkFrame(task_frame, fg_color="transparent")
+        ctrl_frame.grid(row=2, column=0, columnspan=3, pady=5)
+
+        ctk.CTkButton(ctrl_frame, text="▶ Tarayıcı Aç", width=120, fg_color="#27ae60",
+                       command=self._start_browser).pack(side="left", padx=5)
+        ctk.CTkButton(ctrl_frame, text="⏹ Tarayıcı Kapat", width=120, fg_color="#c0392b",
+                       command=self._stop_browser).pack(side="left", padx=5)
+        ctk.CTkButton(ctrl_frame, text="📄 Sayfa Metni", width=110, fg_color="#7f8c8d",
+                       command=self._get_text).pack(side="left", padx=5)
+
+        # === Tıklama / Form doldurma ===
+        action_frame = ctk.CTkFrame(self)
+        action_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=5)
+        action_frame.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(action_frame, text="Selector:").grid(row=0, column=0, padx=10, pady=5)
+        self.selector_entry = ctk.CTkEntry(action_frame, placeholder_text="CSS selector (ör: #login-btn, .submit)")
+        self.selector_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+
+        ctk.CTkButton(action_frame, text="Tıkla", width=60, command=self._do_click).grid(
+            row=0, column=2, padx=5, pady=5
+        )
+
+        ctk.CTkLabel(action_frame, text="Değer:").grid(row=1, column=0, padx=10, pady=5)
+        self.value_entry = ctk.CTkEntry(action_frame, placeholder_text="Doldurmak için değer")
+        self.value_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+
+        ctk.CTkButton(action_frame, text="Doldur", width=60, command=self._do_fill).grid(
+            row=1, column=2, padx=5, pady=5
+        )
+
+        # === Durum ===
+        self.status_label = ctk.CTkLabel(self, text="Tarayıcı kapalı. Önce site ekle, sonra tarayıcıyı aç.", anchor="w")
+        self.status_label.grid(row=3, column=0, sticky="ew", padx=15, pady=5)
+
+        # === Log alanı ===
+        self.log_text = ctk.CTkTextbox(self, height=150)
+        self.log_text.grid(row=4, column=0, sticky="nsew", padx=10, pady=(0, 10))
+
+        # Pencere kapanınca tarayıcıyı kapat
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+
+    def _update_status(self, msg: str):
+        self.after(0, lambda: self.status_label.configure(text=msg))
+        self.after(0, lambda: self._append_log(msg))
+
+    def _append_log(self, msg: str):
+        ts = datetime.now().strftime("%H:%M:%S")
+        self.log_text.insert("end", f"[{ts}] {msg}\n")
+        self.log_text.see("end")
+
+    def _ask_confirm(self, msg: str) -> bool:
+        """Kritik aksiyon onay penceresi."""
+        from tkinter import messagebox
+        return messagebox.askyesno("Onay Gerekli", msg, parent=self)
+
+    def _show_screenshot(self, img_bytes: bytes):
+        """Screenshot'ı log'a not olarak ekle (görsel gösterim ileride eklenebilir)."""
+        self._append_log("📸 Screenshot alındı ve kaydedildi.")
+
+    def _refresh_domains(self):
+        domains = self.agent.domains.get_all()
+        if domains:
+            self.domain_label.configure(text=f"İzinli: {', '.join(domains)}")
+        else:
+            self.domain_label.configure(text="Henüz site eklenmedi. Önce izin verilen siteleri ekleyin.")
+
+    def _add_domain(self):
+        d = self.domain_entry.get().strip()
+        if d:
+            self.agent.domains.add(d)
+            self.domain_entry.delete(0, "end")
+            self._refresh_domains()
+            self._update_status(f"'{d}' eklendi.")
+
+    def _remove_domain(self):
+        d = self.domain_entry.get().strip()
+        if d:
+            self.agent.domains.remove(d)
+            self.domain_entry.delete(0, "end")
+            self._refresh_domains()
+            self._update_status(f"'{d}' çıkarıldı.")
+
+    def _start_browser(self):
+        def work():
+            try:
+                self.agent.start()
+            except Exception as e:
+                self._update_status(f"Hata: {e}")
+        threading.Thread(target=work, daemon=True).start()
+
+    def _stop_browser(self):
+        def work():
+            self.agent.stop()
+        threading.Thread(target=work, daemon=True).start()
+
+    def _do_goto(self):
+        url = self.url_entry.get().strip()
+        if not url:
+            return
+        def work():
+            self.agent.goto(url)
+        threading.Thread(target=work, daemon=True).start()
+
+    def _do_click(self):
+        sel = self.selector_entry.get().strip()
+        if not sel:
+            return
+        def work():
+            r = self.agent.click(sel)
+            if not r["success"]:
+                self._update_status(r["message"])
+        threading.Thread(target=work, daemon=True).start()
+
+    def _do_fill(self):
+        sel = self.selector_entry.get().strip()
+        val = self.value_entry.get().strip()
+        if not sel or not val:
+            return
+        def work():
+            r = self.agent.fill(sel, val)
+            if not r["success"]:
+                self._update_status(r["message"])
+        threading.Thread(target=work, daemon=True).start()
+
+    def _do_screenshot(self):
+        def work():
+            self.agent.screenshot()
+            self._update_status("Screenshot alındı.")
+        threading.Thread(target=work, daemon=True).start()
+
+    def _get_text(self):
+        def work():
+            text = self.agent.get_page_text()
+            self.after(0, lambda: self._append_log(f"Sayfa metni:\n{text[:500]}..."))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_close(self):
+        self.agent.stop()
+        self.destroy()
+
+
 class MiniAgentApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("Mini AI Agent - Yerel Asistan")
+        self.title("HAD3M-EIA")
         self.geometry("1000x800")
         self.minsize(800, 600)
 
@@ -242,7 +444,7 @@ class MiniAgentApp(ctk.CTk):
         # === Üst bar ===
         top_frame = ctk.CTkFrame(self)
         top_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 5))
-        top_frame.grid_columnconfigure(4, weight=1)
+        top_frame.grid_columnconfigure(5, weight=1)
 
         self.btn_add = ctk.CTkButton(
             top_frame, text="📂 Dosya Ekle", width=110, command=self._add_files
@@ -267,8 +469,14 @@ class MiniAgentApp(ctk.CTk):
         )
         self.btn_file_mgr.grid(row=0, column=3, padx=5, pady=5)
 
+        self.btn_browser = ctk.CTkButton(
+            top_frame, text="🌐 Tarayıcı", width=110, fg_color="#2c3e50",
+            command=self._open_browser
+        )
+        self.btn_browser.grid(row=0, column=4, padx=5, pady=5)
+
         self.file_label = ctk.CTkLabel(top_frame, text="Henüz dosya yüklenmedi", anchor="w")
-        self.file_label.grid(row=0, column=4, padx=10, pady=5, sticky="w")
+        self.file_label.grid(row=0, column=5, padx=10, pady=5, sticky="w")
 
         # === Mod seçimi + kişilik seçiciler ===
         mode_frame = ctk.CTkFrame(self)
@@ -342,6 +550,9 @@ class MiniAgentApp(ctk.CTk):
 
     def _open_file_manager(self):
         FileManagerDialog(self, self.file_mgr)
+
+    def _open_browser(self):
+        BrowserDialog(self)
 
     def _refresh_persona_combos(self):
         names = get_personality_names()
