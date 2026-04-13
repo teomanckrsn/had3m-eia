@@ -9,6 +9,7 @@ import customtkinter as ctk
 
 from rag_engine import RAGEngine
 from debate import debate, get_personality_names, get_persona_color, persona_manager
+from file_manager import FileManager
 
 
 ctk.set_appearance_mode("dark")
@@ -69,11 +70,153 @@ class PersonaDialog(ctk.CTkToplevel):
         desc = self.desc_text.get("1.0", "end").strip()
         if not name or not role:
             return
-
         persona_manager.add(name, role, desc, self.selected_color)
         if self.on_save:
             self.on_save()
         self.destroy()
+
+
+class FileManagerDialog(ctk.CTkToplevel):
+    """Dosya yönetimi penceresi — taşıma, oluşturma, geri alma."""
+
+    def __init__(self, parent, file_mgr: FileManager):
+        super().__init__(parent)
+        self.title("Dosya Yöneticisi")
+        self.geometry("600x500")
+        self.transient(parent)
+        self.grab_set()
+        self.fm = file_mgr
+
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(3, weight=1)
+
+        # === Taşıma bölümü ===
+        move_frame = ctk.CTkFrame(self)
+        move_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 5))
+        move_frame.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(move_frame, text="📦 Dosya Taşı", font=ctk.CTkFont(weight="bold")).grid(
+            row=0, column=0, columnspan=3, padx=10, pady=(5, 2), sticky="w"
+        )
+
+        ctk.CTkLabel(move_frame, text="Kaynak:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        self.source_entry = ctk.CTkEntry(move_frame, placeholder_text="Taşınacak dosyanın yolu")
+        self.source_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+        ctk.CTkButton(move_frame, text="Seç", width=50, command=self._pick_source).grid(
+            row=1, column=2, padx=5, pady=5
+        )
+
+        ctk.CTkLabel(move_frame, text="Hedef:").grid(row=2, column=0, padx=10, pady=5, sticky="w")
+        self.dest_entry = ctk.CTkEntry(move_frame, placeholder_text="Hedef klasör yolu")
+        self.dest_entry.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
+        ctk.CTkButton(move_frame, text="Seç", width=50, command=self._pick_dest).grid(
+            row=2, column=2, padx=5, pady=5
+        )
+
+        btn_frame = ctk.CTkFrame(move_frame, fg_color="transparent")
+        btn_frame.grid(row=3, column=0, columnspan=3, pady=5)
+
+        ctk.CTkButton(btn_frame, text="Taşı", width=100, command=self._do_move).pack(side="left", padx=5)
+        ctk.CTkButton(
+            btn_frame, text="↩ Geri Al", width=100, fg_color="#e67e22", command=self._do_undo
+        ).pack(side="left", padx=5)
+
+        # === Dosya oluşturma bölümü ===
+        create_frame = ctk.CTkFrame(self)
+        create_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=5)
+        create_frame.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(create_frame, text="📝 Yeni Dosya / Klasör Oluştur", font=ctk.CTkFont(weight="bold")).grid(
+            row=0, column=0, columnspan=3, padx=10, pady=(5, 2), sticky="w"
+        )
+
+        ctk.CTkLabel(create_frame, text="Yol:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        self.create_path_entry = ctk.CTkEntry(
+            create_frame, placeholder_text="ör: ~/Desktop/notlar/yeni_dosya.txt"
+        )
+        self.create_path_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+
+        create_btn_frame = ctk.CTkFrame(create_frame, fg_color="transparent")
+        create_btn_frame.grid(row=2, column=0, columnspan=2, pady=5)
+
+        ctk.CTkButton(
+            create_btn_frame, text="📄 Dosya Oluştur", width=130, fg_color="#27ae60",
+            command=self._do_create_file
+        ).pack(side="left", padx=5)
+        ctk.CTkButton(
+            create_btn_frame, text="📁 Klasör Oluştur", width=130, fg_color="#2980b9",
+            command=self._do_create_folder
+        ).pack(side="left", padx=5)
+
+        # === Durum ===
+        self.result_label = ctk.CTkLabel(self, text="", anchor="w", wraplength=550)
+        self.result_label.grid(row=2, column=0, sticky="ew", padx=15, pady=5)
+
+        # === Taşıma geçmişi ===
+        ctk.CTkLabel(self, text="Taşıma Geçmişi:", font=ctk.CTkFont(weight="bold")).grid(
+            row=3, column=0, sticky="nw", padx=15, pady=(5, 0)
+        )
+        self.history_text = ctk.CTkTextbox(self, height=120)
+        self.history_text.grid(row=4, column=0, sticky="nsew", padx=10, pady=(0, 10))
+        self._refresh_history()
+
+    def _pick_source(self):
+        path = filedialog.askopenfilename(title="Taşınacak dosyayı seç")
+        if path:
+            self.source_entry.delete(0, "end")
+            self.source_entry.insert(0, path)
+
+    def _pick_dest(self):
+        path = filedialog.askdirectory(title="Hedef klasörü seç")
+        if path:
+            self.dest_entry.delete(0, "end")
+            self.dest_entry.insert(0, path)
+
+    def _show_result(self, result: dict):
+        icon = "✅" if result["success"] else "❌"
+        self.result_label.configure(text=f"{icon} {result['message']}")
+        self._refresh_history()
+
+    def _do_move(self):
+        source = self.source_entry.get().strip()
+        dest = self.dest_entry.get().strip()
+        if not source or not dest:
+            self.result_label.configure(text="❌ Kaynak ve hedef belirtilmeli!")
+            return
+        result = self.fm.move_file(source, dest)
+        self._show_result(result)
+
+    def _do_undo(self):
+        result = self.fm.undo_last_move()
+        self._show_result(result)
+
+    def _do_create_file(self):
+        path = self.create_path_entry.get().strip()
+        if not path:
+            self.result_label.configure(text="❌ Dosya yolu belirtilmeli!")
+            return
+        result = self.fm.create_file(path)
+        self._show_result(result)
+
+    def _do_create_folder(self):
+        path = self.create_path_entry.get().strip()
+        if not path:
+            self.result_label.configure(text="❌ Klasör yolu belirtilmeli!")
+            return
+        result = self.fm.create_folder(path)
+        self._show_result(result)
+
+    def _refresh_history(self):
+        self.history_text.delete("1.0", "end")
+        history = self.fm.get_history()
+        if not history:
+            self.history_text.insert("1.0", "Henüz taşıma yapılmadı.")
+            return
+        for i, h in enumerate(reversed(history[-10:]), 1):
+            src = os.path.basename(h["source"])
+            dest = h["destination"]
+            ts = h["timestamp"][:16].replace("T", " ")
+            self.history_text.insert("end", f"{i}. {src} → {dest}\n   ({ts})\n\n")
 
 
 class MiniAgentApp(ctk.CTk):
@@ -85,6 +228,7 @@ class MiniAgentApp(ctk.CTk):
         self.minsize(800, 600)
 
         self.engine = None
+        self.file_mgr = FileManager()
         self.current_answer = ""
         self.current_question = ""
 
@@ -95,10 +239,10 @@ class MiniAgentApp(ctk.CTk):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(2, weight=1)
 
-        # === Üst bar: dosya + kişilik yönetimi ===
+        # === Üst bar ===
         top_frame = ctk.CTkFrame(self)
         top_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 5))
-        top_frame.grid_columnconfigure(3, weight=1)
+        top_frame.grid_columnconfigure(4, weight=1)
 
         self.btn_add = ctk.CTkButton(
             top_frame, text="📂 Dosya Ekle", width=110, command=self._add_files
@@ -117,8 +261,14 @@ class MiniAgentApp(ctk.CTk):
         )
         self.btn_new_persona.grid(row=0, column=2, padx=5, pady=5)
 
+        self.btn_file_mgr = ctk.CTkButton(
+            top_frame, text="📁 Dosya Yönet", width=120, fg_color="#d35400",
+            command=self._open_file_manager
+        )
+        self.btn_file_mgr.grid(row=0, column=3, padx=5, pady=5)
+
         self.file_label = ctk.CTkLabel(top_frame, text="Henüz dosya yüklenmedi", anchor="w")
-        self.file_label.grid(row=0, column=3, padx=10, pady=5, sticky="w")
+        self.file_label.grid(row=0, column=4, padx=10, pady=5, sticky="w")
 
         # === Mod seçimi + kişilik seçiciler ===
         mode_frame = ctk.CTkFrame(self)
@@ -139,7 +289,6 @@ class MiniAgentApp(ctk.CTk):
         )
         self.radio_debate.grid(row=0, column=1, padx=10, pady=5)
 
-        # Kişilik seçiciler
         names = get_personality_names()
 
         ctk.CTkLabel(mode_frame, text="Kişilik 1:").grid(row=0, column=2, padx=(20, 5))
@@ -191,6 +340,9 @@ class MiniAgentApp(ctk.CTk):
         self.status_label = ctk.CTkLabel(self, text="Başlatılıyor...", anchor="w")
         self.status_label.grid(row=4, column=0, sticky="ew", padx=15, pady=(0, 5))
 
+    def _open_file_manager(self):
+        FileManagerDialog(self, self.file_mgr)
+
     def _refresh_persona_combos(self):
         names = get_personality_names()
         self.combo_p1.configure(values=names)
@@ -204,7 +356,6 @@ class MiniAgentApp(ctk.CTk):
         PersonaDialog(self, on_save=self._refresh_persona_combos)
 
     def _delete_persona(self):
-        # Seçili olan kişilik 1'i sil
         name = self.persona1_var.get()
         if name:
             persona_manager.remove(name)
