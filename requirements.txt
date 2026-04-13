@@ -1,0 +1,7 @@
+ollama
+chromadb
+sentence-transformers
+customtkinter
+pypdf2
+python-docx
+tkinterdnd2
