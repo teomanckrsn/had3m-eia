@@ -12,6 +12,7 @@ from debate import debate, get_personality_names, get_persona_color, persona_man
 from file_manager import FileManager
 from browser_agent import BrowserAgent
 from dev_team import DevProject, dev_team_work, get_team_roles, TEAM_ROLES, analyze_image, _check_model_exists, VISION_MODEL
+from model_config import detect_models, get_chat_model, get_code_model, get_vision_model, has_vision
 from datetime import datetime
 
 
@@ -765,8 +766,16 @@ class MiniAgentApp(ctk.CTk):
     def _init_engine(self):
         def init():
             try:
+                # Modelleri algıla
+                self._update_status("Modeller algılanıyor...")
+                config = detect_models()
+                chat = config.get("chat_model", "?")
+                code = config.get("code_model", "?")
+                vision = config.get("vision_model", "yok")
+                self._update_status(f"Modeller: Sohbet={chat} | Kod={code} | Görsel={vision or 'yok'}")
+
                 self.engine = RAGEngine(on_status=self._update_status)
-                self._update_status("Hazır! Dosya yükleyin ve soru sorun, veya tartışma başlatın.")
+                self._update_status(f"Hazır! (Sohbet: {chat} | Görsel: {vision or 'yok'})")
                 self._update_file_label()
             except Exception as e:
                 self._update_status(f"Hata: {e}")

@@ -6,7 +6,9 @@ from datetime import datetime
 
 import ollama
 
-MODEL_NAME = "aya-expanse:8b"
+from model_config import get_chat_model
+
+MODEL_NAME = get_chat_model()
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 PERSONAS_FILE = os.path.join(DATA_DIR, "personas.json")
 

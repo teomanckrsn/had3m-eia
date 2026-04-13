@@ -11,20 +11,17 @@ import ollama
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 PROJECTS_DIR = os.path.join(DATA_DIR, "projects")
 
-# Kod modeli - varsayılan aya-expanse, ama daha iyi kod için deepseek-coder/codellama önerilir
-CODE_MODEL = os.environ.get("HAD3M_CODE_MODEL", "aya-expanse:8b")
-# Görsel model - llava veya llama3.2-vision (opsiyonel, kurulursa aktif olur)
-VISION_MODEL = os.environ.get("HAD3M_VISION_MODEL", "llava")
+from model_config import get_code_model, get_vision_model, has_vision
+
+CODE_MODEL = get_code_model()
+VISION_MODEL = get_vision_model()
 
 
 def _check_model_exists(model_name: str) -> bool:
     """Modelin kurulu olup olmadığını kontrol et."""
     try:
-        models = ollama.list()
-        for m in models.get("models", []):
-            if model_name in m.get("name", ""):
-                return True
-        return False
+        result = ollama.list()
+        return any(model_name in m.model for m in result.models)
     except Exception:
         return False
 
@@ -166,7 +163,7 @@ def _extract_code_blocks(text: str) -> list[dict]:
 
 def analyze_image(image_path: str) -> str:
     """Görseli analiz et (multimodal model gerekir)."""
-    if not _check_model_exists(VISION_MODEL):
+    if not VISION_MODEL or not _check_model_exists(VISION_MODEL):
         return (
             f"Görsel model ({VISION_MODEL}) kurulu değil. "
             f"Kurmak için: ollama pull {VISION_MODEL}\n"

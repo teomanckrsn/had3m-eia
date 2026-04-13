@@ -20,7 +20,9 @@ DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 FEEDBACK_FILE = os.path.join(DATA_DIR, "feedback.json")
 CHROMA_DIR = os.path.join(DATA_DIR, "chroma_db")
 
-MODEL_NAME = "aya-expanse:8b"
+from model_config import get_chat_model
+
+MODEL_NAME = get_chat_model()
 EMBED_MODEL_NAME = "all-MiniLM-L6-v2"
 CHUNK_SIZE = 500
 CHUNK_OVERLAP = 50
