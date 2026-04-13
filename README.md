@@ -36,7 +36,7 @@ The installer handles: Ollama setup, AI model download (~5GB), Python environmen
 ### Manual Install
 
 ```bash
-git clone https://github.com/teomanckrsn/mini-ai-agent.git
+git clone https://github.com/teomanckrsn/had3m-eia.git
 cd mini-ai-agent
 
 # Install Ollama
@@ -181,7 +181,7 @@ Kurulum su islemleri halleder: Ollama kurulumu, AI model indirme (~5GB), Python 
 ### Manuel Kurulum
 
 ```bash
-git clone https://github.com/teomanckrsn/mini-ai-agent.git
+git clone https://github.com/teomanckrsn/had3m-eia.git
 cd mini-ai-agent
 
 # Ollama kur
