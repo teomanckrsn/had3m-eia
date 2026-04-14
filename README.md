@@ -1,7 +1,7 @@
 # HAD3M-EIA
 
-> A fully offline, local AI assistant that learns from your feedback and automates your browser tasks.
-> Tamamen yerel, internetsiz, geri bildirimle ogrenen ve tarayici gorevlerini otomatiklestiren bir yapay zeka asistan.
+> A local AI assistant that learns from your feedback, automates browser tasks, debates strategies, writes code, and connects via Telegram.
+> Geri bildirimle ogrenen, tarayici gorevlerini otomatiklestiren, strateji tartisan, kod yazan ve Telegram ile baglanan yerel yapay zeka asistan.
 
 ---
 
@@ -19,7 +19,14 @@ HAD3M-EIA is a desktop AI assistant that runs entirely on your computer. Unlike 
 - **Debate Mode** — Make two personas argue a topic, get strategy recommendations from a moderator
 - **Controlled Browser Agent** — Automate web tasks (e.g., generate shipping labels) with strict security controls
 - **File Manager** — Move files, create new files/folders (delete/trash operations are blocked by design)
-- **100% Offline** — Everything runs locally after initial setup. No data ever leaves your computer
+- **Telegram Bot** — Access your AI from your phone via Telegram
+- **Web Search** — DuckDuckGo (free) or Tavily for internet searches when needed
+- **Autonomous Debate** — Set personas to debate overnight, wake up to Excel reports with strategy recommendations
+- **Dev Team** — AI coder, designer, tester, and architect collaborate on projects
+- **Multi-language UI** — Switch between Turkish and English from Settings
+- **Permission System** — Control what each AI persona can do (file access, browser, code, etc.)
+- **CLI Mode** — Terminal version saves ~200-300MB RAM
+- **100% Offline** — Everything runs locally after initial setup (web search optional)
 - **Turkish Optimized** — Powered by Cohere's aya-expanse model, trained for 23 languages including Turkish
 
 ### Quick Install (One-Click)
@@ -121,7 +128,10 @@ python3 app.py
 | LLM | Ollama + aya-expanse:8b | Best local Turkish language support |
 | Vector DB | ChromaDB | Lightweight, local, no server needed |
 | Embeddings | sentence-transformers | Fast local embeddings, no API needed |
-| Browser Automation | Playwright | Reliable, supports Chrome profiles |
+| Browser | Playwright | Reliable, supports Chrome profiles |
+| Web Search | DuckDuckGo + Tavily | Free default + optional AI-optimized |
+| Telegram | python-telegram-bot | Phone access to local AI |
+| Excel Export | openpyxl | Debate reports with formatting |
 | GUI | CustomTkinter | Modern dark-mode desktop UI |
 | Language | Python 3.9+ | Rich AI/ML ecosystem |
 
@@ -130,22 +140,28 @@ python3 app.py
 ```
 HAD3M-EIA/
 ├── app.py              # Main GUI application
-├── rag_engine.py       # RAG engine (document indexing, querying, feedback learning)
-├── debate.py           # Debate system + persona management
+├── cli.py              # Terminal version (lower RAM)
+├── rag_engine.py       # RAG engine (documents + web search + feedback)
+├── debate.py           # Persona system + traits + permissions + debates
+├── auto_debate.py      # Autonomous debates with Excel/JSON/TXT export
+├── dev_team.py         # AI dev team (coder, designer, tester, architect)
 ├── browser_agent.py    # Controlled browser automation
 ├── file_manager.py     # File move/create manager (no delete)
+├── web_search.py       # Web search (DuckDuckGo + Tavily)
+├── telegram_bot.py     # Telegram bot interface
+├── model_config.py     # Auto model detection
+├── i18n.py             # Turkish/English translations
 ├── requirements.txt    # Python dependencies
-├── INSTALL.bat             # Windows one-click installer
-├── INSTALL.command          # macOS one-click installer
-├── USER_GUIDE.md # Detailed Turkish user guide
+├── INSTALL.bat         # Windows one-click installer
+├── INSTALL.command     # macOS one-click installer
 └── data/               # (auto-created) All local data
     ├── chroma_db/      # Vector database
     ├── feedback.json   # User feedback history
-    ├── personas.json   # Custom personas
-    ├── allowed_domains.json  # Browser whitelist
-    ├── browser_history.json  # Browser action logs
-    ├── move_history.json     # File move logs
-    └── browser_logs/   # Compressed screenshots
+    ├── personas.json   # Custom personas (with traits + permissions)
+    ├── settings.json   # App settings (language, API keys)
+    ├── debates/        # Autonomous debate exports (xlsx, json, txt)
+    ├── projects/       # Dev team project outputs
+    └── browser_logs/   # Browser screenshots + action logs
 ```
 
 ---
@@ -164,7 +180,14 @@ HAD3M-EIA, tamamen senin bilgisayarinda calisan bir masaustu yapay zeka uygulama
 - **Tartisma Modu** — Iki kisiligi bir konu uzerinde tartistir, moderatorden strateji onerileri al
 - **Kontrollu Tarayici Agent** — Web gorevlerini otomatiklestir (orn: kargo etiketi al) siki guvenlik kontrolleriyle
 - **Dosya Yoneticisi** — Dosya tasi, yeni dosya/klasor olustur (silme ve cop kutusu islemleri engellidir)
-- **%100 Cevrimdisi** — Ilk kurulumdan sonra internet gerekmez. Hicbir veri bilgisayarindan cikmaz
+- **Telegram Botu** — Telefonundan Telegram uzerinden AI'a eris
+- **Web Arama** — DuckDuckGo (ucretsiz) veya Tavily ile internet aramalari
+- **Otonom Tartisma** — Kisilikleri gece boyu tartistir, sabah Excel rapor al
+- **Gelistirme Ekibi** — AI kodcu, tasarimci, tester ve mimar birlikte proje gelistirir
+- **Coklu Dil Arayuzu** — Ayarlardan Turkce/Ingilizce degistir
+- **Izin Sistemi** — Her AI kisiliginin ne yapabilecegini ayri ayri kontrol et
+- **CLI Modu** — Terminal versiyonu ~200-300MB RAM tasarrufu saglar
+- **%100 Cevrimdisi** — Ilk kurulumdan sonra internet gerekmez (web arama opsiyonel)
 - **Turkce Optimize** — Cohere'in aya-expanse modeli, Turkce dahil 23 dil icin egitilmis
 
 ### Hizli Kurulum (Tek Tikla)
