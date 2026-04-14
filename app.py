@@ -15,6 +15,7 @@ from file_manager import FileManager
 from browser_agent import BrowserAgent
 from auto_debate import AutoDebate
 from dev_team import DevProject, dev_team_work, get_team_roles, TEAM_ROLES
+from i18n import t, set_language, get_language, get_available_languages
 from model_config import detect_models, get_chat_model, get_code_model
 from datetime import datetime
 
@@ -737,6 +738,60 @@ class DevTeamDialog(ctk.CTkToplevel):
         threading.Thread(target=work, daemon=True).start()
 
 
+class SettingsDialog(ctk.CTkToplevel):
+    """Ayarlar penceresi — dil değiştirme ve diğer ayarlar."""
+
+    def __init__(self, parent, on_save=None):
+        super().__init__(parent)
+        self.title(t("settings"))
+        self.geometry("400x250")
+        self.transient(parent)
+        self.grab_set()
+        self.on_save = on_save
+
+        self.grid_columnconfigure(1, weight=1)
+
+        # Dil seçimi
+        ctk.CTkLabel(self, text=t("language") + ":", font=ctk.CTkFont(weight="bold")).grid(
+            row=0, column=0, padx=15, pady=15, sticky="w"
+        )
+
+        lang_names = {"tr": "Türkçe", "en": "English"}
+        current = get_language()
+        self.lang_var = tk.StringVar(value=current)
+
+        lang_frame = ctk.CTkFrame(self, fg_color="transparent")
+        lang_frame.grid(row=0, column=1, padx=10, pady=15, sticky="w")
+
+        for lang_code in get_available_languages():
+            ctk.CTkRadioButton(
+                lang_frame, text=lang_names.get(lang_code, lang_code),
+                variable=self.lang_var, value=lang_code,
+            ).pack(side="left", padx=10)
+
+        # Bilgi
+        ctk.CTkLabel(
+            self, text="Dil değişikliği uygulamayı yeniden başlattığında aktif olur.",
+            text_color="gray", font=ctk.CTkFont(size=11),
+        ).grid(row=1, column=0, columnspan=2, padx=15, pady=5, sticky="w")
+
+        ctk.CTkLabel(
+            self, text="Language change takes effect after restarting the app.",
+            text_color="gray", font=ctk.CTkFont(size=11),
+        ).grid(row=2, column=0, columnspan=2, padx=15, pady=0, sticky="w")
+
+        # Kaydet
+        ctk.CTkButton(
+            self, text=t("save"), fg_color="#27ae60", command=self._save
+        ).grid(row=3, column=0, columnspan=2, padx=15, pady=20)
+
+    def _save(self):
+        set_language(self.lang_var.get())
+        if self.on_save:
+            self.on_save()
+        self.destroy()
+
+
 class MiniAgentApp(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -760,51 +815,57 @@ class MiniAgentApp(ctk.CTk):
         # === Üst bar ===
         top_frame = ctk.CTkFrame(self)
         top_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 5))
-        top_frame.grid_columnconfigure(7, weight=1)
+        top_frame.grid_columnconfigure(8, weight=1)
 
         self.btn_add = ctk.CTkButton(
-            top_frame, text="📂 Dosya Ekle", width=110, command=self._add_files
+            top_frame, text=t("add_file"), width=110, command=self._add_files
         )
-        self.btn_add.grid(row=0, column=0, padx=5, pady=5)
+        self.btn_add.grid(row=0, column=0, padx=3, pady=5)
 
         self.btn_clear = ctk.CTkButton(
-            top_frame, text="🗑 Temizle", width=80, fg_color="gray",
+            top_frame, text=t("clear"), width=70, fg_color="gray",
             command=self._clear_files
         )
-        self.btn_clear.grid(row=0, column=1, padx=5, pady=5)
+        self.btn_clear.grid(row=0, column=1, padx=3, pady=5)
 
         self.btn_new_persona = ctk.CTkButton(
-            top_frame, text="🤖 AI Oluştur", width=100, fg_color="#8e44ad",
+            top_frame, text=t("create_ai"), width=100, fg_color="#8e44ad",
             command=self._open_persona_dialog
         )
         self.btn_new_persona.grid(row=0, column=2, padx=3, pady=5)
 
         self.btn_relationships = ctk.CTkButton(
-            top_frame, text="🔗 İlişkiler", width=90, fg_color="#e67e22",
+            top_frame, text=t("relationships"), width=90, fg_color="#e67e22",
             command=self._open_relationships
         )
         self.btn_relationships.grid(row=0, column=3, padx=3, pady=5)
 
         self.btn_file_mgr = ctk.CTkButton(
-            top_frame, text="📁 Dosya", width=80, fg_color="#d35400",
+            top_frame, text=t("file_manager"), width=70, fg_color="#d35400",
             command=self._open_file_manager
         )
         self.btn_file_mgr.grid(row=0, column=4, padx=3, pady=5)
 
         self.btn_browser = ctk.CTkButton(
-            top_frame, text="🌐 Tarayıcı", width=90, fg_color="#2c3e50",
+            top_frame, text=t("browser"), width=85, fg_color="#2c3e50",
             command=self._open_browser
         )
         self.btn_browser.grid(row=0, column=5, padx=3, pady=5)
 
         self.btn_dev_team = ctk.CTkButton(
-            top_frame, text="💻 Kodla", width=80, fg_color="#2ecc71",
+            top_frame, text=t("dev_team"), width=70, fg_color="#2ecc71",
             command=self._open_dev_team
         )
         self.btn_dev_team.grid(row=0, column=6, padx=3, pady=5)
 
-        self.file_label = ctk.CTkLabel(top_frame, text="Henüz dosya yüklenmedi", anchor="w")
-        self.file_label.grid(row=0, column=7, padx=10, pady=5, sticky="w")
+        self.btn_settings = ctk.CTkButton(
+            top_frame, text=t("settings_btn"), width=70, fg_color="#7f8c8d",
+            command=self._open_settings
+        )
+        self.btn_settings.grid(row=0, column=7, padx=3, pady=5)
+
+        self.file_label = ctk.CTkLabel(top_frame, text=t("no_files"), anchor="w")
+        self.file_label.grid(row=0, column=8, padx=10, pady=5, sticky="w")
 
         # === Mod seçimi + kişilik seçiciler ===
         mode_frame = ctk.CTkFrame(self)
@@ -814,13 +875,13 @@ class MiniAgentApp(ctk.CTk):
         self.mode_var = tk.StringVar(value="chat")
 
         self.radio_chat = ctk.CTkRadioButton(
-            mode_frame, text="💬 Sohbet", variable=self.mode_var, value="chat",
+            mode_frame, text=t("chat_mode"), variable=self.mode_var, value="chat",
             command=self._on_mode_change
         )
         self.radio_chat.grid(row=0, column=0, padx=10, pady=5)
 
         self.radio_debate = ctk.CTkRadioButton(
-            mode_frame, text="⚔️ Tartışma", variable=self.mode_var, value="debate",
+            mode_frame, text=t("debate_mode"), variable=self.mode_var, value="debate",
             command=self._on_mode_change
         )
         self.radio_debate.grid(row=0, column=1, padx=10, pady=5)
@@ -877,7 +938,7 @@ class MiniAgentApp(ctk.CTk):
         self._on_mode_change()
 
         # === Sohbet alanı ===
-        self.chat_frame = ctk.CTkScrollableFrame(self, label_text="Sohbet")
+        self.chat_frame = ctk.CTkScrollableFrame(self, label_text=t("chat_label"))
         self.chat_frame.grid(row=2, column=0, sticky="nsew", padx=10, pady=5)
         self.chat_frame.grid_columnconfigure(0, weight=1)
         self.chat_widgets = []
@@ -888,13 +949,13 @@ class MiniAgentApp(ctk.CTk):
         bottom_frame.grid_columnconfigure(0, weight=1)
 
         self.input_entry = ctk.CTkEntry(
-            bottom_frame, placeholder_text="Sorunuzu yazın...", height=40
+            bottom_frame, placeholder_text=t("type_question"), height=40
         )
         self.input_entry.grid(row=0, column=0, padx=(5, 5), pady=5, sticky="ew")
         self.input_entry.bind("<Return>", self._on_enter)
 
         self.btn_send = ctk.CTkButton(
-            bottom_frame, text="Gönder", width=80, command=self._send_question
+            bottom_frame, text=t("send"), width=80, command=self._send_question
         )
         self.btn_send.grid(row=0, column=1, padx=5, pady=5)
 
@@ -952,6 +1013,9 @@ class MiniAgentApp(ctk.CTk):
             self.auto_debate.stop()
             self._update_status("Tartışma durduruluyor...")
 
+    def _open_settings(self):
+        SettingsDialog(self)
+
     def _open_relationships(self):
         RelationshipDialog(self)
 
@@ -999,9 +1063,9 @@ class MiniAgentApp(ctk.CTk):
         self.btn_auto_debate.configure(state=state)
         self.btn_stop_debate.configure(state=state)
         if is_debate:
-            self.input_entry.configure(placeholder_text="Tartışma konusunu yazın (ör: Yeni ürün lansmanı stratejisi)...")
+            self.input_entry.configure(placeholder_text=t("type_debate_topic"))
         else:
-            self.input_entry.configure(placeholder_text="Sorunuzu yazın...")
+            self.input_entry.configure(placeholder_text=t("type_question"))
 
     def _init_engine(self):
         def init():
