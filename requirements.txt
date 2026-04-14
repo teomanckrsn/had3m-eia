@@ -7,3 +7,4 @@ python-docx
 tkinterdnd2
 playwright
 openpyxl
+python-telegram-bot
