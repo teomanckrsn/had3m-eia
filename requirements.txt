@@ -6,3 +6,4 @@ pypdf2
 python-docx
 tkinterdnd2
 playwright
+openpyxl

@@ -12,6 +12,7 @@ from debate import (debate, get_personality_names, get_persona_color, persona_ma
                      get_trait_categories, get_all_traits, PERSONALITY_TRAITS)
 from file_manager import FileManager
 from browser_agent import BrowserAgent
+from auto_debate import AutoDebate
 from dev_team import DevProject, dev_team_work, get_team_roles, TEAM_ROLES, analyze_image, _check_model_exists, VISION_MODEL
 from model_config import detect_models, get_chat_model, get_code_model, get_vision_model, has_vision
 from datetime import datetime
@@ -831,6 +832,26 @@ class MiniAgentApp(ctk.CTk):
         )
         self.btn_del_persona.grid(row=0, column=6, padx=5, pady=5)
 
+        # Otonom tartışma ayarları
+        ctk.CTkLabel(mode_frame, text="Tur:").grid(row=0, column=7, padx=(10, 2))
+        self.rounds_var = tk.StringVar(value="20")
+        self.rounds_entry = ctk.CTkEntry(mode_frame, textvariable=self.rounds_var, width=50)
+        self.rounds_entry.grid(row=0, column=8, padx=2, pady=5)
+
+        self.btn_auto_debate = ctk.CTkButton(
+            mode_frame, text="🔄 Otonom", width=80, fg_color="#e67e22",
+            command=self._start_auto_debate
+        )
+        self.btn_auto_debate.grid(row=0, column=9, padx=5, pady=5)
+
+        self.btn_stop_debate = ctk.CTkButton(
+            mode_frame, text="⏹", width=35, fg_color="#c0392b",
+            command=self._stop_auto_debate
+        )
+        self.btn_stop_debate.grid(row=0, column=10, padx=2, pady=5)
+
+        self.auto_debate = None
+
         self._on_mode_change()
 
         # === Sohbet alanı ===
@@ -861,6 +882,53 @@ class MiniAgentApp(ctk.CTk):
 
     def _open_file_manager(self):
         FileManagerDialog(self, self.file_mgr)
+
+    def _start_auto_debate(self):
+        p1 = self.persona1_var.get()
+        p2 = self.persona2_var.get()
+        topic = self.input_entry.get().strip()
+
+        if not p1 or not p2 or p1 == p2:
+            self._update_status("Farklı 2 kişilik seçin!")
+            return
+        if not topic:
+            self._update_status("Tartışma konusu yazın!")
+            return
+
+        self.input_entry.delete(0, "end")
+
+        try:
+            rounds = int(self.rounds_var.get())
+        except ValueError:
+            rounds = 20
+
+        self._add_chat_bubble(f"Otonom tartışma: {p1} vs {p2} — {rounds} tur\nKonu: {topic}", is_user=True)
+
+        self.auto_debate = AutoDebate(
+            topic=topic,
+            personas=[p1, p2],
+            rounds=rounds,
+            on_message=lambda p, m, r: self.after(0, lambda: self._add_chat_bubble(
+                f"[Tur {r}] {m}", persona=p
+            )),
+            on_status=lambda s: self._update_status(s),
+        )
+
+        self.btn_auto_debate.configure(state="disabled")
+
+        def work():
+            self.auto_debate.run()
+            self.after(0, lambda: self.btn_auto_debate.configure(state="normal"))
+            self.after(0, lambda: self._update_status(
+                f"Tartışma bitti! Dosyalar: data/debates/"
+            ))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _stop_auto_debate(self):
+        if self.auto_debate:
+            self.auto_debate.stop()
+            self._update_status("Tartışma durduruluyor...")
 
     def _open_relationships(self):
         RelationshipDialog(self)
@@ -899,6 +967,9 @@ class MiniAgentApp(ctk.CTk):
         self.combo_p1.configure(state=state)
         self.combo_p2.configure(state=state)
         self.btn_del_persona.configure(state=state)
+        self.rounds_entry.configure(state=state)
+        self.btn_auto_debate.configure(state=state)
+        self.btn_stop_debate.configure(state=state)
         if is_debate:
             self.input_entry.configure(placeholder_text="Tartışma konusunu yazın (ör: Yeni ürün lansmanı stratejisi)...")
         else:
