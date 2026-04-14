@@ -24,131 +24,243 @@ ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
 
-class CreateAIDialog(ctk.CTkToplevel):
-    """Konuşma akışıyla AI oluşturma — isim sor, sonra görev sor, kaydet."""
+class AIChatDialog(ctk.CTkToplevel):
+    """Bir AI'a özel sohbet penceresi — geçmiş yüklenir, kayıtlı kalır."""
 
-    def __init__(self, parent, on_save=None):
+    def __init__(self, parent, ai_name: str):
         super().__init__(parent)
-        self.title("🤖 Yeni AI Oluştur")
-        self.geometry("600x550")
-        self.transient(parent)
-        self.grab_set()
-        self.on_save = on_save
+        self.ai_name = ai_name
+        persona = persona_manager.get(ai_name)
 
-        self.step = 0  # 0: isim, 1: görev
-        self.ai_name = ""
-        self.ai_task = ""
+        self.title(f"💬 {ai_name}")
+        self.geometry("750x650")
+        self.transient(parent)
+
+        # Sohbet geçmişi
+        from chat_history import ChatHistory
+        self.history = ChatHistory(ai_name)
+
+        # Model
+        import ollama
+        self.ollama = ollama
+        self.model_name = get_chat_model()
+        self.system_prompt = persona_manager.get_system_prompt(ai_name)
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
+
+        # Başlık çubuğu
+        header = ctk.CTkFrame(self, fg_color=persona.get("color", "#8e44ad"), corner_radius=0)
+        header.grid(row=0, column=0, sticky="ew")
+        header.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            header, text=f"💬 {ai_name}",
+            font=ctk.CTkFont(size=16, weight="bold"),
+            padx=15, pady=10,
+        ).grid(row=0, column=0, sticky="w")
+
+        ctk.CTkLabel(
+            header, text=persona.get("description", "")[:60] + "...",
+            font=ctk.CTkFont(size=11),
+            text_color="#ddd", padx=15,
+        ).grid(row=1, column=0, sticky="w", pady=(0, 8))
+
+        btn_clear = ctk.CTkButton(
+            header, text="🗑 Geçmişi Temizle", width=130,
+            fg_color="#c0392b", hover_color="#a93226",
+            command=self._clear_history,
+        )
+        btn_clear.grid(row=0, column=1, rowspan=2, padx=10, pady=8)
 
         # Sohbet alanı
-        self.chat_frame = ctk.CTkScrollableFrame(self, label_text="AI Oluşturma")
-        self.chat_frame.grid(row=0, column=0, sticky="nsew", padx=15, pady=(15, 5))
+        self.chat_frame = ctk.CTkScrollableFrame(self, label_text="Sohbet")
+        self.chat_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=5)
         self.chat_frame.grid_columnconfigure(0, weight=1)
 
-        # Alt giriş alanı
+        # Giriş alanı
         input_frame = ctk.CTkFrame(self)
-        input_frame.grid(row=1, column=0, sticky="ew", padx=15, pady=(5, 15))
+        input_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=(5, 10))
         input_frame.grid_columnconfigure(0, weight=1)
 
         self.entry = ctk.CTkEntry(
-            input_frame, placeholder_text="Cevabını yaz ve Enter'a bas...", height=40,
+            input_frame, placeholder_text=f"{ai_name}'a yazın...", height=40,
         )
         self.entry.grid(row=0, column=0, padx=(5, 5), pady=5, sticky="ew")
-        self.entry.bind("<Return>", lambda e: self._submit())
+        self.entry.bind("<Return>", lambda e: self._send())
         self.entry.focus_set()
 
-        self.btn_submit = ctk.CTkButton(
-            input_frame, text="Gönder", width=80, command=self._submit, fg_color="#27ae60",
+        self.btn_send = ctk.CTkButton(
+            input_frame, text="Gönder", width=80,
+            command=self._send, fg_color="#27ae60",
         )
-        self.btn_submit.grid(row=0, column=1, padx=5, pady=5)
+        self.btn_send.grid(row=0, column=1, padx=5, pady=5)
 
-        # İlk mesaj
-        self._add_bubble(
-            "Merhaba! Ben yeni bir AI olmak üzere şekilleniyorum.\n\n"
-            "Önce bana ne isim vermek istersin? (örn: Halime, Ayşe, Mehmet)",
-            is_ai=True,
-        )
+        # Geçmişi yükle
+        self._load_history()
 
-    def _add_bubble(self, text: str, is_ai: bool = False):
-        color = "#8e44ad" if is_ai else "#1a73e8"
+    def _add_bubble(self, text: str, is_user: bool):
+        color = "#1a73e8" if is_user else "#2b2b2b"
         bubble = ctk.CTkFrame(self.chat_frame, fg_color=color, corner_radius=12)
         bubble.grid(
-            sticky="w" if is_ai else "e",
-            padx=(5, 80) if is_ai else (80, 5),
+            sticky="e" if is_user else "w",
+            padx=(100, 5) if is_user else (5, 100),
             pady=4,
         )
-        if is_ai:
-            header = ctk.CTkLabel(
-                bubble, text="🤖 AI", font=ctk.CTkFont(weight="bold", size=12),
+        if not is_user:
+            ctk.CTkLabel(
+                bubble, text=f"🤖 {self.ai_name}",
+                font=ctk.CTkFont(weight="bold", size=11),
                 anchor="w", padx=12, pady=(6, 0),
-            )
-            header.pack(fill="x")
-        label = ctk.CTkLabel(
-            bubble, text=text, wraplength=420, justify="left",
+            ).pack(fill="x")
+        ctk.CTkLabel(
+            bubble, text=text, wraplength=500, justify="left",
             anchor="w", padx=12, pady=8,
-        )
-        label.pack(fill="x")
+        ).pack(fill="x")
         self.chat_frame._parent_canvas.yview_moveto(1.0)
 
-    def _submit(self):
+    def _load_history(self):
+        """Kayıtlı geçmişi göster."""
+        for msg in self.history.get_messages():
+            self._add_bubble(msg["content"], is_user=(msg["role"] == "user"))
+
+    def _clear_history(self):
+        self.history.clear()
+        # Sohbet frame'i temizle
+        for widget in self.chat_frame.winfo_children():
+            widget.destroy()
+
+    def _send(self):
         text = self.entry.get().strip()
         if not text:
             return
 
         self.entry.delete(0, "end")
-        self._add_bubble(text, is_ai=False)
+        self._add_bubble(text, is_user=True)
+        self.history.add_message("user", text)
+        self.btn_send.configure(state="disabled")
 
-        if self.step == 0:
-            # İsim alındı
-            self.ai_name = text
-            self.step = 1
-            self._add_bubble(
-                f"{self.ai_name}, çok güzel bir isim! 💜\n\n"
-                f"Şimdi bana görev tanımımı anlat. Ne iş yapmamı istiyorsun? "
-                f"Nasıl biri olmalıyım? Ne konularda uzman olayım?\n\n"
-                f"(Örnek: 'Sen benim kişisel asistanımsın. Günlük işlerimde bana "
-                f"yardım ediyorsun. Organize, pratik ve çözüm odaklısın.')",
-                is_ai=True,
-            )
-        elif self.step == 1:
-            # Görev alındı
-            self.ai_task = text
-            self._add_bubble(
-                f"Harika! Artık ben {self.ai_name}'ım ve şu görev için varım:\n\n"
-                f"\"{self.ai_task}\"\n\n"
-                f"Kaydediyorum ve sohbete hazır olacağım. Pencereyi kapatabilirsin, "
-                f"tartışma modunda beni seçerek konuşabilirsin. 🎉",
-                is_ai=True,
-            )
-            self._save_persona()
+        def work():
+            try:
+                messages = [{"role": "system", "content": self.system_prompt}]
+                messages.extend(self.history.get_for_llm(max_messages=20))
 
-    def _save_persona(self):
-        """Kişiliği kaydet."""
-        # İsim çakışması kontrolü
-        base = self.ai_name
-        name = base
+                response = self.ollama.chat(
+                    model=self.model_name,
+                    messages=messages,
+                )
+                answer = response["message"]["content"]
+                self.history.add_message("assistant", answer)
+                self.after(0, lambda: self._add_bubble(answer, is_user=False))
+            except Exception as e:
+                err = f"Hata: {e}"
+                self.after(0, lambda: self._add_bubble(err, is_user=False))
+            finally:
+                self.after(0, lambda: self.btn_send.configure(state="normal"))
+
+        threading.Thread(target=work, daemon=True).start()
+
+
+class CreateAIDialog(ctk.CTkToplevel):
+    """Yeni AI oluştur — basit form: isim + görev tanımı."""
+
+    def __init__(self, parent, on_save=None):
+        super().__init__(parent)
+        self.title("🤖 Yeni AI Oluştur")
+        self.geometry("520x480")
+        self.transient(parent)
+        self.grab_set()
+        self.on_save = on_save
+
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(3, weight=1)
+
+        # Başlık
+        ctk.CTkLabel(
+            self, text="🤖 Yeni AI Oluştur",
+            font=ctk.CTkFont(size=20, weight="bold"),
+        ).grid(row=0, column=0, padx=20, pady=(20, 5), sticky="w")
+
+        ctk.CTkLabel(
+            self, text="Kendi yapay zekanı oluştur. İsim ver, görev tanımını yaz.",
+            text_color="gray",
+        ).grid(row=1, column=0, padx=20, pady=(0, 15), sticky="w")
+
+        # Form frame
+        form = ctk.CTkFrame(self)
+        form.grid(row=2, column=0, sticky="ew", padx=20, pady=5)
+        form.grid_columnconfigure(0, weight=1)
+
+        # İsim
+        ctk.CTkLabel(
+            form, text="İsim", font=ctk.CTkFont(weight="bold"),
+        ).grid(row=0, column=0, padx=15, pady=(15, 3), sticky="w")
+
+        self.name_entry = ctk.CTkEntry(
+            form, placeholder_text="örn: Halime, Ayşe, Pazarlama Asistanı",
+            height=38,
+        )
+        self.name_entry.grid(row=1, column=0, padx=15, pady=(0, 10), sticky="ew")
+        self.name_entry.focus_set()
+
+        # Görev tanımı
+        ctk.CTkLabel(
+            form, text="Görev Tanımı (Prompt)",
+            font=ctk.CTkFont(weight="bold"),
+        ).grid(row=2, column=0, padx=15, pady=(10, 3), sticky="w")
+
+        ctk.CTkLabel(
+            form, text="Nasıl biri olmalı? Ne iş yapacak? Karakteri nasıl olsun?",
+            text_color="gray", font=ctk.CTkFont(size=11),
+        ).grid(row=3, column=0, padx=15, pady=0, sticky="w")
+
+        self.task_text = ctk.CTkTextbox(form, height=140)
+        self.task_text.grid(row=4, column=0, padx=15, pady=(5, 15), sticky="ew")
+        self.task_text.insert(
+            "1.0",
+            "Sen benim kişisel asistanımsın. Günlük işlerimde bana yardım ediyorsun. "
+            "Organize, pratik ve çözüm odaklısın. Kısa ve net cevaplar verirsin.",
+        )
+
+        # Oluştur butonu
+        self.btn_create = ctk.CTkButton(
+            self, text="✨ Oluştur", height=42,
+            font=ctk.CTkFont(size=14, weight="bold"),
+            fg_color="#8e44ad", hover_color="#7d3c98",
+            command=self._create,
+        )
+        self.btn_create.grid(row=3, column=0, padx=20, pady=20, sticky="ew")
+
+    def _create(self):
+        name = self.name_entry.get().strip()
+        task = self.task_text.get("1.0", "end").strip()
+
+        if not name:
+            self.name_entry.configure(border_color="red")
+            return
+        if not task:
+            return
+
+        # İsim çakışması
+        base = name
+        final_name = base
         counter = 2
-        while name in persona_manager.get_names():
-            name = f"{base} ({counter})"
+        while final_name in persona_manager.get_names():
+            final_name = f"{base} ({counter})"
             counter += 1
 
         persona_manager.add(
-            name=name,
-            role=self.ai_name,
-            description=self.ai_task,
+            name=final_name,
+            role=name,
+            description=task,
             color="#8e44ad",
             traits=[],
             permissions=dict(DEFAULT_PERMISSIONS),
         )
 
-        # Giriş alanını kilitle
-        self.entry.configure(state="disabled", placeholder_text="AI oluşturuldu, pencereyi kapatabilirsin")
-        self.btn_submit.configure(state="disabled", text="✓ Oluşturuldu")
-
         if self.on_save:
-            self.on_save()
+            self.on_save(final_name)
+        self.destroy()
 
 
 class PersonaDialog(ctk.CTkToplevel):
@@ -936,12 +1048,36 @@ class MiniAgentApp(ctk.CTk):
         self._init_engine()
 
     def _build_ui(self):
-        self.grid_columnconfigure(0, weight=1)
+        # İki sütun: sol sidebar (AI listesi), sağ ana içerik
+        self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(2, weight=1)
+
+        # === Sol sidebar: AI listesi ===
+        self.sidebar = ctk.CTkFrame(self, width=220, corner_radius=0)
+        self.sidebar.grid(row=0, column=0, rowspan=5, sticky="nsew", padx=0, pady=0)
+        self.sidebar.grid_propagate(False)
+        self.sidebar.grid_columnconfigure(0, weight=1)
+        self.sidebar.grid_rowconfigure(2, weight=1)
+
+        ctk.CTkLabel(
+            self.sidebar, text="🤖 Yapay Zekalar",
+            font=ctk.CTkFont(size=16, weight="bold"),
+        ).grid(row=0, column=0, padx=15, pady=(15, 5), sticky="w")
+
+        btn_new_ai = ctk.CTkButton(
+            self.sidebar, text="+ Yeni AI Oluştur",
+            fg_color="#8e44ad", hover_color="#7d3c98",
+            command=self._open_persona_dialog,
+        )
+        btn_new_ai.grid(row=1, column=0, padx=10, pady=(0, 10), sticky="ew")
+
+        self.ai_list_frame = ctk.CTkScrollableFrame(self.sidebar, label_text="")
+        self.ai_list_frame.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
+        self.ai_list_frame.grid_columnconfigure(0, weight=1)
 
         # === Üst bar ===
         top_frame = ctk.CTkFrame(self)
-        top_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 5))
+        top_frame.grid(row=0, column=1, sticky="ew", padx=10, pady=(10, 5))
         top_frame.grid_columnconfigure(8, weight=1)
 
         self.btn_add = ctk.CTkButton(
@@ -996,7 +1132,7 @@ class MiniAgentApp(ctk.CTk):
 
         # === Mod seçimi + kişilik seçiciler ===
         mode_frame = ctk.CTkFrame(self)
-        mode_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 5))
+        mode_frame.grid(row=1, column=1, sticky="ew", padx=10, pady=(0, 5))
         mode_frame.grid_columnconfigure(7, weight=1)
 
         self.mode_var = tk.StringVar(value="chat")
@@ -1066,13 +1202,13 @@ class MiniAgentApp(ctk.CTk):
 
         # === Sohbet alanı ===
         self.chat_frame = ctk.CTkScrollableFrame(self, label_text=t("chat_label"))
-        self.chat_frame.grid(row=2, column=0, sticky="nsew", padx=10, pady=5)
+        self.chat_frame.grid(row=2, column=1, sticky="nsew", padx=10, pady=5)
         self.chat_frame.grid_columnconfigure(0, weight=1)
         self.chat_widgets = []
 
         # === Giriş alanı ===
         bottom_frame = ctk.CTkFrame(self)
-        bottom_frame.grid(row=3, column=0, sticky="ew", padx=10, pady=(5, 10))
+        bottom_frame.grid(row=3, column=1, sticky="ew", padx=10, pady=(5, 10))
         bottom_frame.grid_columnconfigure(0, weight=1)
 
         self.input_entry = ctk.CTkEntry(
@@ -1088,7 +1224,10 @@ class MiniAgentApp(ctk.CTk):
 
         # === Durum çubuğu ===
         self.status_label = ctk.CTkLabel(self, text="Başlatılıyor...", anchor="w")
-        self.status_label.grid(row=4, column=0, sticky="ew", padx=15, pady=(0, 5))
+        self.status_label.grid(row=4, column=1, sticky="ew", padx=15, pady=(0, 5))
+
+        # AI listesini başlangıçta doldur
+        self._refresh_ai_list()
 
     def _open_file_manager(self):
         FileManagerDialog(self, self.file_mgr)
@@ -1162,8 +1301,47 @@ class MiniAgentApp(ctk.CTk):
             self.persona2_var.set(names[1])
 
     def _open_persona_dialog(self):
-        # Konuşma akışıyla yeni AI oluştur (isim → görev → kaydet)
-        CreateAIDialog(self, on_save=self._refresh_persona_combos)
+        # Form ile yeni AI oluştur (isim + görev)
+        def on_created(name=None):
+            self._refresh_persona_combos()
+            self._refresh_ai_list()
+            # Oluşturulan AI'ın sohbet penceresini direkt aç
+            if name:
+                AIChatDialog(self, name)
+        CreateAIDialog(self, on_save=on_created)
+
+    def _refresh_ai_list(self):
+        """Sol sidebar'daki AI butonlarını yenile."""
+        # Önceki butonları temizle
+        for widget in self.ai_list_frame.winfo_children():
+            widget.destroy()
+
+        names = persona_manager.get_names()
+        if not names:
+            ctk.CTkLabel(
+                self.ai_list_frame,
+                text="Henüz AI yok.\n\n'+ Yeni AI Oluştur'\nbutonuna bas.",
+                text_color="gray", justify="center",
+            ).pack(pady=20)
+            return
+
+        for name in names:
+            persona = persona_manager.get(name)
+            color = persona.get("color", "#8e44ad")
+            btn = ctk.CTkButton(
+                self.ai_list_frame,
+                text=f"🤖 {name}",
+                fg_color=color,
+                hover_color=color,
+                anchor="w",
+                height=40,
+                command=lambda n=name: self._open_ai_chat(n),
+            )
+            btn.pack(fill="x", padx=5, pady=3)
+
+    def _open_ai_chat(self, name: str):
+        """AI'ın kendi sohbet penceresini aç."""
+        AIChatDialog(self, name)
 
     def _edit_persona(self):
         name = self.persona1_var.get()
