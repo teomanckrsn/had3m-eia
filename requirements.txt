@@ -8,3 +8,5 @@ tkinterdnd2
 playwright
 openpyxl
 python-telegram-bot
+duckduckgo-search
+tavily-python

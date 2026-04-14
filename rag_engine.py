@@ -225,15 +225,35 @@ class RAGEngine:
         parts.append("Yukarıdaki örneklerden öğrenerek cevap ver. Beğenilen tarza yakın, beğenilmeyen tarzdan uzak dur.")
         return "\n".join(parts)
 
-    def ask(self, question: str) -> str:
-        """Soruyu cevapla (RAG + geri bildirim öğrenme)."""
+    def _should_web_search(self, question: str) -> bool:
+        """Sorunun web araması gerektirip gerektirmediğini kontrol et."""
+        web_keywords = [
+            "internetten", "internet", "web", "ara ", "arat", "google",
+            "güncel", "son haberler", "şu an", "bugün", "search",
+            "bak ", "bir bak", "araştır", "sitede", "online",
+        ]
+        q_lower = question.lower()
+        return any(kw in q_lower for kw in web_keywords)
+
+    def ask(self, question: str, force_web: bool = False) -> str:
+        """Soruyu cevapla (RAG + geri bildirim + opsiyonel web arama)."""
         # Benzer dokümanları bul
         context_docs = self.query(question)
+
+        # Web arama gerekli mi?
+        web_results = ""
+        if force_web or self._should_web_search(question):
+            self.on_status("İnternette aranıyor...")
+            try:
+                from web_search import search_and_summarize
+                web_results = search_and_summarize(question)
+            except Exception as e:
+                web_results = f"Web arama hatası: {e}"
 
         # Sistem promptu
         system = (
             "Sen yardımcı bir Türkçe asistansın. "
-            "Kullanıcının yüklediği belgelerden bilgi alarak sorularını yanıtlıyorsun. "
+            "Kullanıcının yüklediği belgelerden ve web aramalarından bilgi alarak sorularını yanıtlıyorsun. "
             "Her zaman Türkçe cevap ver. Bilmiyorsan bilmediğini söyle."
         )
 
@@ -243,14 +263,22 @@ class RAGEngine:
             system += feedback_prompt
 
         # Bağlam
+        parts = []
+
         if context_docs:
             context_text = "\n\n".join(
                 f"[{d['file_name']}]: {d['text']}" for d in context_docs
             )
+            parts.append(f"--- BELGELER ---\n{context_text}")
+
+        if web_results:
+            parts.append(f"--- WEB ARAMA SONUÇLARI ---\n{web_results}")
+
+        if parts:
             user_msg = (
-                f"Aşağıdaki belgelerden yararlanarak soruyu yanıtla:\n\n"
-                f"--- BELGELER ---\n{context_text}\n\n"
-                f"--- SORU ---\n{question}"
+                f"Aşağıdaki kaynaklardan yararlanarak soruyu yanıtla:\n\n"
+                + "\n\n".join(parts)
+                + f"\n\n--- SORU ---\n{question}"
             )
         else:
             user_msg = question
