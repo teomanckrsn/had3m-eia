@@ -27,14 +27,6 @@ CODE_MODEL_PRIORITY = [
     "llama3.2:3b",
 ]
 
-VISION_MODEL_PRIORITY = [
-    "llava:13b",
-    "llava:7b",
-    "llava",
-    "llama3.2-vision:11b",
-    "bakllava",
-]
-
 
 def get_installed_models() -> list[str]:
     """Kurulu tüm modelleri listele."""
@@ -62,7 +54,6 @@ def detect_models() -> dict:
         "installed_models": installed,
         "chat_model": _find_best(installed, CHAT_MODEL_PRIORITY),
         "code_model": _find_best(installed, CODE_MODEL_PRIORITY),
-        "vision_model": _find_best(installed, VISION_MODEL_PRIORITY),
     }
 
     # Kaydet
@@ -87,11 +78,3 @@ def get_chat_model() -> str:
 
 def get_code_model() -> str:
     return get_config().get("code_model", "aya-expanse:8b")
-
-
-def get_vision_model() -> str:
-    return get_config().get("vision_model", "")
-
-
-def has_vision() -> bool:
-    return bool(get_vision_model())

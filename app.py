@@ -13,8 +13,8 @@ from debate import (debate, get_personality_names, get_persona_color, persona_ma
 from file_manager import FileManager
 from browser_agent import BrowserAgent
 from auto_debate import AutoDebate
-from dev_team import DevProject, dev_team_work, get_team_roles, TEAM_ROLES, analyze_image, _check_model_exists, VISION_MODEL
-from model_config import detect_models, get_chat_model, get_code_model, get_vision_model, has_vision
+from dev_team import DevProject, dev_team_work, get_team_roles, TEAM_ROLES
+from model_config import detect_models, get_chat_model, get_code_model
 from datetime import datetime
 
 
@@ -601,24 +601,9 @@ class DevTeamDialog(ctk.CTkToplevel):
         )
         self.task_entry.grid(row=1, column=0, padx=10, pady=5, sticky="ew")
 
-        # Görsel ekleme
-        img_frame = ctk.CTkFrame(task_frame, fg_color="transparent")
-        img_frame.grid(row=2, column=0, padx=10, pady=5, sticky="w")
-
-        self.btn_add_image = ctk.CTkButton(
-            img_frame, text="🖼 Tasarım Görseli Ekle", width=180, fg_color="#e74c3c",
-            command=self._pick_image
-        )
-        self.btn_add_image.pack(side="left", padx=(0, 10))
-
-        self.image_label = ctk.CTkLabel(img_frame, text="Görsel eklenmedi (opsiyonel)", anchor="w")
-        self.image_label.pack(side="left")
-
-        self.image_path = None
-
         # Ekip üyeleri seçimi
         team_frame = ctk.CTkFrame(task_frame, fg_color="transparent")
-        team_frame.grid(row=3, column=0, padx=10, pady=5, sticky="w")
+        team_frame.grid(row=2, column=0, padx=10, pady=5, sticky="w")
 
         ctk.CTkLabel(team_frame, text="Ekip:").pack(side="left", padx=(0, 10))
 
@@ -636,14 +621,7 @@ class DevTeamDialog(ctk.CTkToplevel):
             task_frame, text="▶ Ekibi Çalıştır", height=35, fg_color="#27ae60",
             command=self._start_work
         )
-        self.btn_start.grid(row=4, column=0, padx=10, pady=10)
-
-        # Görsel model durumu
-        vision_status = "✅ Kurulu" if _check_model_exists(VISION_MODEL) else f"❌ Kurulu değil (ollama pull {VISION_MODEL})"
-        ctk.CTkLabel(
-            task_frame, text=f"Görsel model ({VISION_MODEL}): {vision_status}",
-            font=ctk.CTkFont(size=11), text_color="gray"
-        ).grid(row=5, column=0, padx=10, pady=(0, 5), sticky="w")
+        self.btn_start.grid(row=3, column=0, padx=10, pady=10)
 
         # === Durum ===
         self.status_label = ctk.CTkLabel(self, text="Proje adı ve görev girin, ekibi seçin, çalıştırın.", anchor="w")
@@ -653,15 +631,6 @@ class DevTeamDialog(ctk.CTkToplevel):
         self.output_frame = ctk.CTkScrollableFrame(self, label_text="Ekip Çıktısı")
         self.output_frame.grid(row=3, column=0, sticky="nsew", padx=10, pady=(0, 10))
         self.output_frame.grid_columnconfigure(0, weight=1)
-
-    def _pick_image(self):
-        path = filedialog.askopenfilename(
-            title="Tasarım görseli seç",
-            filetypes=[("Görseller", "*.png *.jpg *.jpeg *.webp *.gif"), ("Tümü", "*.*")],
-        )
-        if path:
-            self.image_path = path
-            self.image_label.configure(text=os.path.basename(path))
 
     def _add_output(self, role: str, emoji: str, text: str, color: str):
         frame = ctk.CTkFrame(self.output_frame, fg_color=color, corner_radius=10)
@@ -708,7 +677,6 @@ class DevTeamDialog(ctk.CTkToplevel):
                 dev_team_work(
                     self.project, task, selected_team,
                     on_message=on_message,
-                    image_path=self.image_path,
                 )
                 self.after(0, lambda: self.status_label.configure(
                     text=f"✅ Tamamlandı! Dosyalar: {self.project.project_dir}"
@@ -983,11 +951,10 @@ class MiniAgentApp(ctk.CTk):
                 config = detect_models()
                 chat = config.get("chat_model", "?")
                 code = config.get("code_model", "?")
-                vision = config.get("vision_model", "yok")
-                self._update_status(f"Modeller: Sohbet={chat} | Kod={code} | Görsel={vision or 'yok'}")
+                self._update_status(f"Modeller: Sohbet={chat} | Kod={code}")
 
                 self.engine = RAGEngine(on_status=self._update_status)
-                self._update_status(f"Hazır! (Sohbet: {chat} | Görsel: {vision or 'yok'})")
+                self._update_status(f"Hazır! (Model: {chat})")
                 self._update_file_label()
             except Exception as e:
                 self._update_status(f"Hata: {e}")

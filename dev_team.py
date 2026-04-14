@@ -2,7 +2,6 @@
 
 import os
 import json
-import base64
 from pathlib import Path
 from datetime import datetime
 
@@ -11,19 +10,9 @@ import ollama
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 PROJECTS_DIR = os.path.join(DATA_DIR, "projects")
 
-from model_config import get_code_model, get_vision_model, has_vision
+from model_config import get_code_model
 
 CODE_MODEL = get_code_model()
-VISION_MODEL = get_vision_model()
-
-
-def _check_model_exists(model_name: str) -> bool:
-    """Modelin kurulu olup olmadığını kontrol et."""
-    try:
-        result = ollama.list()
-        return any(model_name in m.model for m in result.models)
-    except Exception:
-        return False
 
 
 # Ekip rolleri
@@ -161,40 +150,8 @@ def _extract_code_blocks(text: str) -> list[dict]:
     return blocks
 
 
-def analyze_image(image_path: str) -> str:
-    """Görseli analiz et (multimodal model gerekir)."""
-    if not VISION_MODEL or not _check_model_exists(VISION_MODEL):
-        return (
-            f"Görsel model ({VISION_MODEL}) kurulu değil. "
-            f"Kurmak için: ollama pull {VISION_MODEL}\n"
-            f"Görsel analiz bu model olmadan yapılamaz."
-        )
-
-    with open(image_path, "rb") as f:
-        img_data = base64.b64encode(f.read()).decode()
-
-    response = ollama.chat(
-        model=VISION_MODEL,
-        messages=[{
-            "role": "user",
-            "content": (
-                "Bu görseli analiz et. Eğer bir UI/web tasarımı ise, "
-                "detaylı olarak şunları belirt:\n"
-                "1. Layout yapısı (header, sidebar, content, footer)\n"
-                "2. Renk paleti\n"
-                "3. Kullanılan bileşenler (butonlar, formlar, kartlar vb.)\n"
-                "4. Tipografi\n"
-                "5. Bu tasarımı HTML/CSS ile nasıl implement edersin\n"
-                "Türkçe cevap ver."
-            ),
-            "images": [img_data],
-        }],
-    )
-    return response["message"]["content"]
-
-
 def dev_team_work(project: DevProject, task: str, team_members: list[str],
-                  on_message=None, image_path: str = None):
+                  on_message=None):
     """
     Geliştirme ekibini bir görev üzerinde çalıştır.
 
@@ -202,16 +159,8 @@ def dev_team_work(project: DevProject, task: str, team_members: list[str],
     task: Yapılacak görev açıklaması
     team_members: Çalışacak ekip üyeleri listesi (ör: ["Mimar", "Kodcu", "Tester"])
     on_message: callback(role_name, emoji, message, color)
-    image_path: Opsiyonel görsel dosya yolu (tasarım referansı)
     """
     on_message = on_message or (lambda *a: None)
-
-    # Görsel analizi
-    image_analysis = ""
-    if image_path and os.path.exists(image_path):
-        on_message("Sistem", "🖼", "Görsel analiz ediliyor...", "#7f8c8d")
-        image_analysis = analyze_image(image_path)
-        on_message("Sistem", "🖼", f"Görsel analiz tamamlandı:\n{image_analysis}", "#7f8c8d")
 
     # Mevcut dosyaları context olarak hazırla
     existing_files = project.list_files()
@@ -238,9 +187,6 @@ def dev_team_work(project: DevProject, task: str, team_members: list[str],
             f"Açıklama: {project.description}\n"
             f"Görev: {task}\n"
         )
-
-        if image_analysis:
-            context += f"\nTasarım referansı analizi:\n{image_analysis}\n"
 
         if files_context:
             context += files_context
