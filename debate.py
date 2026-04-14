@@ -71,63 +71,26 @@ def traits_to_description(traits: list[str]) -> str:
             parts.append(PERSONALITY_TRAITS[t])
     return " ".join(parts)
 
-# Varsayılan kişilikler (ilk açılışta oluşturulur)
-DEFAULT_PERSONAS = {
-    "Kişisel Asistan": {
-        "name": "Kişisel Asistan",
-        "role": "Kişisel asistan",
-        "description": (
-            "Sen kullanıcının kişisel asistanısın. Önceliğin kullanıcının "
-            "ihtiyaçlarını anlamak ve pratik çözümler sunmak. Organize, yardımsever "
-            "ve çözüm odaklısın."
-        ),
-        "color": "#1a73e8",
-    },
-    "Şirket Yöneticisi": {
-        "name": "Şirket Yöneticisi",
-        "role": "CEO / Genel Müdür",
-        "description": (
-            "Sen bir şirketin genel müdürüsün. Stratejik düşünür, büyük resmi görür, "
-            "risk-fayda analizleri yaparsın. Kararlarını şirketin uzun vadeli başarısına "
-            "göre şekillendirirsin. Finansal sürdürülebilirlik ve büyüme senin için önemli."
-        ),
-        "color": "#2c3e50",
-    },
-    "Reklam Danışmanı": {
-        "name": "Reklam Danışmanı",
-        "role": "Pazarlama ve reklam uzmanı",
-        "description": (
-            "Sen deneyimli bir reklam ve pazarlama danışmanısın. Marka bilinirliği, "
-            "hedef kitle analizi, kampanya stratejileri ve dijital pazarlama konularında "
-            "uzmansın. Yaratıcı ve trend takipçisisin."
-        ),
-        "color": "#e74c3c",
-    },
-    "Finans Müdürü": {
-        "name": "Finans Müdürü",
-        "role": "CFO / Finans direktörü",
-        "description": (
-            "Sen şirketin finans müdürüsün. Bütçe, maliyet, kârlılık ve yatırım "
-            "getirisi perspektifinden değerlendirme yaparsın. Sayılarla konuşur, "
-            "riskleri finansal açıdan analiz edersin."
-        ),
-        "color": "#27ae60",
-    },
-    "Müşteri Temsilcisi": {
-        "name": "Müşteri Temsilcisi",
-        "role": "Müşteri deneyimi uzmanı",
-        "description": (
-            "Sen müşteri tarafını temsil ediyorsun. Müşteri memnuniyeti, kullanıcı "
-            "deneyimi ve müşteri geri bildirimleri konusunda uzmansın. Her kararı "
-            "müşterinin gözünden değerlendirirsin."
-        ),
-        "color": "#f39c12",
-    },
+# İzin tipleri — her AI kişiliğine ayrı ayrı verilebilir
+PERMISSION_TYPES = {
+    "can_move_files": "Dosya taşıyabilir",
+    "can_create_files": "Dosya oluşturabilir",
+    "can_use_browser": "Tarayıcı kullanabilir",
+    "can_write_code": "Kod yazabilir",
+    "can_debate": "Tartışmaya katılabilir",
+}
+
+DEFAULT_PERMISSIONS = {
+    "can_move_files": False,
+    "can_create_files": False,
+    "can_use_browser": False,
+    "can_write_code": False,
+    "can_debate": True,
 }
 
 
 class PersonaManager:
-    """Kişilikleri yönetir - oluştur, düzenle, sil."""
+    """Kişilikleri yönetir - oluştur, düzenle, sil. Hardcoded kişilik YOK."""
 
     def __init__(self):
         os.makedirs(DATA_DIR, exist_ok=True)
@@ -136,10 +99,14 @@ class PersonaManager:
     def _load(self) -> dict:
         if os.path.exists(PERSONAS_FILE):
             with open(PERSONAS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        # İlk açılış: varsayılanları kaydet
-        self._save_dict(DEFAULT_PERSONAS)
-        return dict(DEFAULT_PERSONAS)
+                data = json.load(f)
+                # Eski formattaki kişiliklere permissions ekle
+                for name, p in data.items():
+                    if "permissions" not in p:
+                        p["permissions"] = dict(DEFAULT_PERMISSIONS)
+                return data
+        # İlk açılış: boş başla
+        return {}
 
     def _save_dict(self, data: dict):
         with open(PERSONAS_FILE, "w", encoding="utf-8") as f:
@@ -155,7 +122,8 @@ class PersonaManager:
         return self.personas.get(name, {})
 
     def add(self, name: str, role: str, description: str, color: str = "#2b2b2b",
-            traits: list[str] = None, relationships: dict = None):
+            traits: list[str] = None, relationships: dict = None,
+            permissions: dict = None):
         self.personas[name] = {
             "name": name,
             "role": role,
@@ -163,8 +131,35 @@ class PersonaManager:
             "color": color,
             "traits": traits or [],
             "relationships": relationships or {},
+            "permissions": permissions or dict(DEFAULT_PERMISSIONS),
         }
         self._save()
+
+    def update(self, name: str, **kwargs):
+        """Mevcut kişiliği güncelle. Sadece verilen alanlar değişir."""
+        if name not in self.personas:
+            return
+        for key, val in kwargs.items():
+            if key in self.personas[name]:
+                self.personas[name][key] = val
+        # İsim değiştiyse eski key'i kaldır, yenisini ekle
+        new_name = kwargs.get("name")
+        if new_name and new_name != name:
+            self.personas[new_name] = self.personas.pop(name)
+            self.personas[new_name]["name"] = new_name
+        self._save()
+
+    def get_permission(self, name: str, perm: str) -> bool:
+        """Kişiliğin belirli bir izni var mı?"""
+        p = self.personas.get(name, {})
+        return p.get("permissions", {}).get(perm, False)
+
+    def set_permission(self, name: str, perm: str, value: bool):
+        if name in self.personas:
+            if "permissions" not in self.personas[name]:
+                self.personas[name]["permissions"] = dict(DEFAULT_PERMISSIONS)
+            self.personas[name]["permissions"][perm] = value
+            self._save()
 
     def set_relationship(self, from_name: str, to_name: str, opinion: str):
         """Kişilikler arası ilişki tanımla. ör: CEO → Finans Müdürü: 'Temkinli buluyorum'"""

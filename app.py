@@ -9,7 +9,8 @@ import customtkinter as ctk
 
 from rag_engine import RAGEngine
 from debate import (debate, get_personality_names, get_persona_color, persona_manager,
-                     get_trait_categories, get_all_traits, PERSONALITY_TRAITS)
+                     get_trait_categories, get_all_traits, PERSONALITY_TRAITS,
+                     PERMISSION_TYPES, DEFAULT_PERMISSIONS)
 from file_manager import FileManager
 from browser_agent import BrowserAgent
 from auto_debate import AutoDebate
@@ -23,81 +24,113 @@ ctk.set_default_color_theme("blue")
 
 
 class PersonaDialog(ctk.CTkToplevel):
-    """Yeni kişilik oluşturma penceresi — rol, tanım, karakter özellikleri."""
+    """Yapay Zeka oluştur / düzenle — isim, rol, özellikler, izinler."""
 
-    def __init__(self, parent, on_save=None):
+    def __init__(self, parent, on_save=None, edit_name: str = None):
         super().__init__(parent)
-        self.title("Yeni Kişilik Oluştur")
-        self.geometry("600x700")
+        self.edit_name = edit_name
+        self.editing = edit_name is not None
+        self.title("Yapay Zeka Düzenle" if self.editing else "Yapay Zeka Oluştur")
+        self.geometry("620x750")
         self.transient(parent)
         self.grab_set()
         self.on_save = on_save
         self.selected_color = "#2b2b2b"
 
+        # Düzenleme modunda mevcut veriyi yükle
+        existing = persona_manager.get(edit_name) if self.editing else {}
+
         self.grid_columnconfigure(1, weight=1)
-        self.grid_rowconfigure(4, weight=1)
+        self.grid_rowconfigure(6, weight=1)
 
         row = 0
-        ctk.CTkLabel(self, text="İsim:").grid(row=row, column=0, padx=10, pady=6, sticky="w")
+        ctk.CTkLabel(self, text="İsim:").grid(row=row, column=0, padx=10, pady=5, sticky="w")
         self.name_entry = ctk.CTkEntry(self, placeholder_text="ör: Pazarlama Müdürü")
-        self.name_entry.grid(row=row, column=1, padx=10, pady=6, sticky="ew")
+        self.name_entry.grid(row=row, column=1, padx=10, pady=5, sticky="ew")
+        if self.editing:
+            self.name_entry.insert(0, existing.get("name", ""))
 
         row += 1
-        ctk.CTkLabel(self, text="Rol:").grid(row=row, column=0, padx=10, pady=6, sticky="w")
+        ctk.CTkLabel(self, text="Rol:").grid(row=row, column=0, padx=10, pady=5, sticky="w")
         self.role_entry = ctk.CTkEntry(self, placeholder_text="ör: Dijital pazarlama uzmanı")
-        self.role_entry.grid(row=row, column=1, padx=10, pady=6, sticky="ew")
+        self.role_entry.grid(row=row, column=1, padx=10, pady=5, sticky="ew")
+        if self.editing:
+            self.role_entry.insert(0, existing.get("role", ""))
 
         row += 1
-        ctk.CTkLabel(self, text="Tanım:").grid(row=row, column=0, padx=10, pady=6, sticky="nw")
-        self.desc_text = ctk.CTkTextbox(self, height=80)
-        self.desc_text.grid(row=row, column=1, padx=10, pady=6, sticky="ew")
-        self.desc_text.insert("1.0", "Uzmanlık alanını ve bakış açısını tanımlayın (opsiyonel)...")
+        ctk.CTkLabel(self, text="Tanım:").grid(row=row, column=0, padx=10, pady=5, sticky="nw")
+        self.desc_text = ctk.CTkTextbox(self, height=60)
+        self.desc_text.grid(row=row, column=1, padx=10, pady=5, sticky="ew")
+        if self.editing and existing.get("description"):
+            self.desc_text.insert("1.0", existing["description"])
+        else:
+            self.desc_text.insert("1.0", "Uzmanlık alanını tanımlayın (opsiyonel)...")
 
         row += 1
-        ctk.CTkLabel(self, text="Renk:").grid(row=row, column=0, padx=10, pady=6, sticky="w")
+        ctk.CTkLabel(self, text="Renk:").grid(row=row, column=0, padx=10, pady=5, sticky="w")
+        if self.editing:
+            self.selected_color = existing.get("color", "#2b2b2b")
         self.color_btn = ctk.CTkButton(
             self, text="Renk Seç", fg_color=self.selected_color,
             command=self._pick_color, width=100,
         )
-        self.color_btn.grid(row=row, column=1, padx=10, pady=6, sticky="w")
+        self.color_btn.grid(row=row, column=1, padx=10, pady=5, sticky="w")
+
+        # === İzinler ===
+        row += 1
+        ctk.CTkLabel(
+            self, text="İzinler:", font=ctk.CTkFont(weight="bold")
+        ).grid(row=row, column=0, columnspan=2, padx=10, pady=(8, 3), sticky="w")
+
+        row += 1
+        perm_frame = ctk.CTkFrame(self, fg_color="transparent")
+        perm_frame.grid(row=row, column=0, columnspan=2, sticky="ew", padx=10, pady=3)
+
+        existing_perms = existing.get("permissions", DEFAULT_PERMISSIONS) if self.editing else DEFAULT_PERMISSIONS
+        self.perm_vars = {}
+        for perm_key, perm_label in PERMISSION_TYPES.items():
+            var = tk.BooleanVar(value=existing_perms.get(perm_key, False))
+            self.perm_vars[perm_key] = var
+            ctk.CTkCheckBox(perm_frame, text=perm_label, variable=var).pack(
+                side="left", padx=8, pady=3
+            )
 
         # === Karakter Özellikleri ===
         row += 1
         ctk.CTkLabel(
-            self, text="Karakter Özellikleri (istediğin kadar seç):",
-            font=ctk.CTkFont(weight="bold")
-        ).grid(row=row, column=0, columnspan=2, padx=10, pady=(10, 5), sticky="w")
+            self, text="Karakter Özellikleri:", font=ctk.CTkFont(weight="bold")
+        ).grid(row=row, column=0, columnspan=2, padx=10, pady=(8, 3), sticky="w")
 
         row += 1
-        traits_frame = ctk.CTkScrollableFrame(self, height=280)
-        traits_frame.grid(row=row, column=0, columnspan=2, sticky="nsew", padx=10, pady=5)
-        traits_frame.grid_columnconfigure(0, weight=1)
+        traits_frame = ctk.CTkScrollableFrame(self, height=220)
+        traits_frame.grid(row=row, column=0, columnspan=2, sticky="nsew", padx=10, pady=3)
 
+        existing_traits = existing.get("traits", []) if self.editing else []
         self.trait_vars = {}
         categories = get_trait_categories()
 
         for cat_name, trait_list in categories.items():
-            cat_label = ctk.CTkLabel(
+            ctk.CTkLabel(
                 traits_frame, text=f"  {cat_name}",
-                font=ctk.CTkFont(weight="bold", size=13),
-            )
-            cat_label.pack(anchor="w", padx=5, pady=(8, 2))
+                font=ctk.CTkFont(weight="bold", size=12),
+            ).pack(anchor="w", padx=5, pady=(6, 1))
 
             cat_frame = ctk.CTkFrame(traits_frame, fg_color="transparent")
-            cat_frame.pack(fill="x", padx=10, pady=2)
+            cat_frame.pack(fill="x", padx=10, pady=1)
 
             for trait_name in trait_list:
-                var = tk.BooleanVar(value=False)
+                var = tk.BooleanVar(value=trait_name in existing_traits)
                 self.trait_vars[trait_name] = var
-                cb = ctk.CTkCheckBox(
-                    cat_frame, text=trait_name,
-                    variable=var, width=140,
-                )
-                cb.pack(side="left", padx=5, pady=2)
+                ctk.CTkCheckBox(
+                    cat_frame, text=trait_name, variable=var, width=130,
+                ).pack(side="left", padx=4, pady=1)
 
         # Kaydet butonu
         row += 1
-        self.btn_save = ctk.CTkButton(self, text="Kaydet", command=self._save, height=35)
+        self.btn_save = ctk.CTkButton(
+            self, text="Güncelle" if self.editing else "Oluştur",
+            command=self._save, height=35, fg_color="#27ae60",
+        )
         self.btn_save.grid(row=row, column=0, columnspan=2, padx=10, pady=10)
 
     def _pick_color(self):
@@ -110,14 +143,29 @@ class PersonaDialog(ctk.CTkToplevel):
         name = self.name_entry.get().strip()
         role = self.role_entry.get().strip()
         desc = self.desc_text.get("1.0", "end").strip()
-        if desc == "Uzmanlık alanını ve bakış açısını tanımlayın (opsiyonel)...":
+        if desc == "Uzmanlık alanını tanımlayın (opsiyonel)...":
             desc = ""
         if not name or not role:
             return
 
-        # Seçilen özellikleri topla
         selected_traits = [t for t, v in self.trait_vars.items() if v.get()]
-        persona_manager.add(name, role, desc, self.selected_color, traits=selected_traits)
+        selected_perms = {k: v.get() for k, v in self.perm_vars.items()}
+
+        if self.editing:
+            # Düzenleme: eski kişiliği güncelle
+            persona_manager.update(
+                self.edit_name,
+                name=name, role=role, description=desc,
+                color=self.selected_color, traits=selected_traits,
+                permissions=selected_perms,
+            )
+        else:
+            # Yeni oluştur
+            persona_manager.add(
+                name, role, desc, self.selected_color,
+                traits=selected_traits, permissions=selected_perms,
+            )
+
         if self.on_save:
             self.on_save()
         self.destroy()
@@ -726,7 +774,7 @@ class MiniAgentApp(ctk.CTk):
         self.btn_clear.grid(row=0, column=1, padx=5, pady=5)
 
         self.btn_new_persona = ctk.CTkButton(
-            top_frame, text="👤 Kişilik", width=90, fg_color="#8e44ad",
+            top_frame, text="🤖 AI Oluştur", width=100, fg_color="#8e44ad",
             command=self._open_persona_dialog
         )
         self.btn_new_persona.grid(row=0, column=2, padx=3, pady=5)
@@ -794,29 +842,35 @@ class MiniAgentApp(ctk.CTk):
         )
         self.combo_p2.grid(row=0, column=5, padx=5, pady=5)
 
+        self.btn_edit_persona = ctk.CTkButton(
+            mode_frame, text="✏️", width=35, fg_color="#2980b9",
+            command=self._edit_persona
+        )
+        self.btn_edit_persona.grid(row=0, column=6, padx=2, pady=5)
+
         self.btn_del_persona = ctk.CTkButton(
             mode_frame, text="🗑", width=35, fg_color="#c0392b",
             command=self._delete_persona
         )
-        self.btn_del_persona.grid(row=0, column=6, padx=5, pady=5)
+        self.btn_del_persona.grid(row=0, column=7, padx=2, pady=5)
 
         # Otonom tartışma ayarları
-        ctk.CTkLabel(mode_frame, text="Tur:").grid(row=0, column=7, padx=(10, 2))
+        ctk.CTkLabel(mode_frame, text="Tur:").grid(row=0, column=8, padx=(10, 2))
         self.rounds_var = tk.StringVar(value="20")
         self.rounds_entry = ctk.CTkEntry(mode_frame, textvariable=self.rounds_var, width=50)
-        self.rounds_entry.grid(row=0, column=8, padx=2, pady=5)
+        self.rounds_entry.grid(row=0, column=9, padx=2, pady=5)
 
         self.btn_auto_debate = ctk.CTkButton(
             mode_frame, text="🔄 Otonom", width=80, fg_color="#e67e22",
             command=self._start_auto_debate
         )
-        self.btn_auto_debate.grid(row=0, column=9, padx=5, pady=5)
+        self.btn_auto_debate.grid(row=0, column=10, padx=5, pady=5)
 
         self.btn_stop_debate = ctk.CTkButton(
             mode_frame, text="⏹", width=35, fg_color="#c0392b",
             command=self._stop_auto_debate
         )
-        self.btn_stop_debate.grid(row=0, column=10, padx=2, pady=5)
+        self.btn_stop_debate.grid(row=0, column=11, padx=2, pady=5)
 
         self.auto_debate = None
 
@@ -919,6 +973,11 @@ class MiniAgentApp(ctk.CTk):
     def _open_persona_dialog(self):
         PersonaDialog(self, on_save=self._refresh_persona_combos)
 
+    def _edit_persona(self):
+        name = self.persona1_var.get()
+        if name and name in persona_manager.get_names():
+            PersonaDialog(self, on_save=self._refresh_persona_combos, edit_name=name)
+
     def _delete_persona(self):
         name = self.persona1_var.get()
         if name:
@@ -934,6 +993,7 @@ class MiniAgentApp(ctk.CTk):
         state = "normal" if is_debate else "disabled"
         self.combo_p1.configure(state=state)
         self.combo_p2.configure(state=state)
+        self.btn_edit_persona.configure(state=state)
         self.btn_del_persona.configure(state=state)
         self.rounds_entry.configure(state=state)
         self.btn_auto_debate.configure(state=state)
