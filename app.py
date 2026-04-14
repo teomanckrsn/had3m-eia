@@ -24,6 +24,133 @@ ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
 
+class CreateAIDialog(ctk.CTkToplevel):
+    """Konuşma akışıyla AI oluşturma — isim sor, sonra görev sor, kaydet."""
+
+    def __init__(self, parent, on_save=None):
+        super().__init__(parent)
+        self.title("🤖 Yeni AI Oluştur")
+        self.geometry("600x550")
+        self.transient(parent)
+        self.grab_set()
+        self.on_save = on_save
+
+        self.step = 0  # 0: isim, 1: görev
+        self.ai_name = ""
+        self.ai_task = ""
+
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=1)
+
+        # Sohbet alanı
+        self.chat_frame = ctk.CTkScrollableFrame(self, label_text="AI Oluşturma")
+        self.chat_frame.grid(row=0, column=0, sticky="nsew", padx=15, pady=(15, 5))
+        self.chat_frame.grid_columnconfigure(0, weight=1)
+
+        # Alt giriş alanı
+        input_frame = ctk.CTkFrame(self)
+        input_frame.grid(row=1, column=0, sticky="ew", padx=15, pady=(5, 15))
+        input_frame.grid_columnconfigure(0, weight=1)
+
+        self.entry = ctk.CTkEntry(
+            input_frame, placeholder_text="Cevabını yaz ve Enter'a bas...", height=40,
+        )
+        self.entry.grid(row=0, column=0, padx=(5, 5), pady=5, sticky="ew")
+        self.entry.bind("<Return>", lambda e: self._submit())
+        self.entry.focus_set()
+
+        self.btn_submit = ctk.CTkButton(
+            input_frame, text="Gönder", width=80, command=self._submit, fg_color="#27ae60",
+        )
+        self.btn_submit.grid(row=0, column=1, padx=5, pady=5)
+
+        # İlk mesaj
+        self._add_bubble(
+            "Merhaba! Ben yeni bir AI olmak üzere şekilleniyorum.\n\n"
+            "Önce bana ne isim vermek istersin? (örn: Halime, Ayşe, Mehmet)",
+            is_ai=True,
+        )
+
+    def _add_bubble(self, text: str, is_ai: bool = False):
+        color = "#8e44ad" if is_ai else "#1a73e8"
+        bubble = ctk.CTkFrame(self.chat_frame, fg_color=color, corner_radius=12)
+        bubble.grid(
+            sticky="w" if is_ai else "e",
+            padx=(5, 80) if is_ai else (80, 5),
+            pady=4,
+        )
+        if is_ai:
+            header = ctk.CTkLabel(
+                bubble, text="🤖 AI", font=ctk.CTkFont(weight="bold", size=12),
+                anchor="w", padx=12, pady=(6, 0),
+            )
+            header.pack(fill="x")
+        label = ctk.CTkLabel(
+            bubble, text=text, wraplength=420, justify="left",
+            anchor="w", padx=12, pady=8,
+        )
+        label.pack(fill="x")
+        self.chat_frame._parent_canvas.yview_moveto(1.0)
+
+    def _submit(self):
+        text = self.entry.get().strip()
+        if not text:
+            return
+
+        self.entry.delete(0, "end")
+        self._add_bubble(text, is_ai=False)
+
+        if self.step == 0:
+            # İsim alındı
+            self.ai_name = text
+            self.step = 1
+            self._add_bubble(
+                f"{self.ai_name}, çok güzel bir isim! 💜\n\n"
+                f"Şimdi bana görev tanımımı anlat. Ne iş yapmamı istiyorsun? "
+                f"Nasıl biri olmalıyım? Ne konularda uzman olayım?\n\n"
+                f"(Örnek: 'Sen benim kişisel asistanımsın. Günlük işlerimde bana "
+                f"yardım ediyorsun. Organize, pratik ve çözüm odaklısın.')",
+                is_ai=True,
+            )
+        elif self.step == 1:
+            # Görev alındı
+            self.ai_task = text
+            self._add_bubble(
+                f"Harika! Artık ben {self.ai_name}'ım ve şu görev için varım:\n\n"
+                f"\"{self.ai_task}\"\n\n"
+                f"Kaydediyorum ve sohbete hazır olacağım. Pencereyi kapatabilirsin, "
+                f"tartışma modunda beni seçerek konuşabilirsin. 🎉",
+                is_ai=True,
+            )
+            self._save_persona()
+
+    def _save_persona(self):
+        """Kişiliği kaydet."""
+        # İsim çakışması kontrolü
+        base = self.ai_name
+        name = base
+        counter = 2
+        while name in persona_manager.get_names():
+            name = f"{base} ({counter})"
+            counter += 1
+
+        persona_manager.add(
+            name=name,
+            role=self.ai_name,
+            description=self.ai_task,
+            color="#8e44ad",
+            traits=[],
+            permissions=dict(DEFAULT_PERMISSIONS),
+        )
+
+        # Giriş alanını kilitle
+        self.entry.configure(state="disabled", placeholder_text="AI oluşturuldu, pencereyi kapatabilirsin")
+        self.btn_submit.configure(state="disabled", text="✓ Oluşturuldu")
+
+        if self.on_save:
+            self.on_save()
+
+
 class PersonaDialog(ctk.CTkToplevel):
     """Yapay Zeka oluştur / düzenle — isim, rol, özellikler, izinler."""
 
@@ -1035,7 +1162,8 @@ class MiniAgentApp(ctk.CTk):
             self.persona2_var.set(names[1])
 
     def _open_persona_dialog(self):
-        PersonaDialog(self, on_save=self._refresh_persona_combos)
+        # Konuşma akışıyla yeni AI oluştur (isim → görev → kaydet)
+        CreateAIDialog(self, on_save=self._refresh_persona_combos)
 
     def _edit_persona(self):
         name = self.persona1_var.get()
