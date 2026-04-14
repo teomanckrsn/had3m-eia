@@ -8,7 +8,8 @@ from tkinter import filedialog, colorchooser
 import customtkinter as ctk
 
 from rag_engine import RAGEngine
-from debate import debate, get_personality_names, get_persona_color, persona_manager
+from debate import (debate, get_personality_names, get_persona_color, persona_manager,
+                     get_trait_categories, get_all_traits, PERSONALITY_TRAITS)
 from file_manager import FileManager
 from browser_agent import BrowserAgent
 from dev_team import DevProject, dev_team_work, get_team_roles, TEAM_ROLES, analyze_image, _check_model_exists, VISION_MODEL
@@ -21,46 +22,82 @@ ctk.set_default_color_theme("blue")
 
 
 class PersonaDialog(ctk.CTkToplevel):
-    """Yeni kişilik oluşturma penceresi."""
+    """Yeni kişilik oluşturma penceresi — rol, tanım, karakter özellikleri."""
 
     def __init__(self, parent, on_save=None):
         super().__init__(parent)
         self.title("Yeni Kişilik Oluştur")
-        self.geometry("450x400")
+        self.geometry("600x700")
         self.transient(parent)
         self.grab_set()
         self.on_save = on_save
         self.selected_color = "#2b2b2b"
 
         self.grid_columnconfigure(1, weight=1)
+        self.grid_rowconfigure(4, weight=1)
 
         row = 0
-        ctk.CTkLabel(self, text="İsim:").grid(row=row, column=0, padx=10, pady=8, sticky="w")
+        ctk.CTkLabel(self, text="İsim:").grid(row=row, column=0, padx=10, pady=6, sticky="w")
         self.name_entry = ctk.CTkEntry(self, placeholder_text="ör: Pazarlama Müdürü")
-        self.name_entry.grid(row=row, column=1, padx=10, pady=8, sticky="ew")
+        self.name_entry.grid(row=row, column=1, padx=10, pady=6, sticky="ew")
 
         row += 1
-        ctk.CTkLabel(self, text="Rol:").grid(row=row, column=0, padx=10, pady=8, sticky="w")
+        ctk.CTkLabel(self, text="Rol:").grid(row=row, column=0, padx=10, pady=6, sticky="w")
         self.role_entry = ctk.CTkEntry(self, placeholder_text="ör: Dijital pazarlama uzmanı")
-        self.role_entry.grid(row=row, column=1, padx=10, pady=8, sticky="ew")
+        self.role_entry.grid(row=row, column=1, padx=10, pady=6, sticky="ew")
 
         row += 1
-        ctk.CTkLabel(self, text="Tanım:").grid(row=row, column=0, padx=10, pady=8, sticky="nw")
-        self.desc_text = ctk.CTkTextbox(self, height=120)
-        self.desc_text.grid(row=row, column=1, padx=10, pady=8, sticky="ew")
-        self.desc_text.insert("1.0", "Bu kişiliğin uzmanlık alanını ve bakış açısını tanımlayın...")
+        ctk.CTkLabel(self, text="Tanım:").grid(row=row, column=0, padx=10, pady=6, sticky="nw")
+        self.desc_text = ctk.CTkTextbox(self, height=80)
+        self.desc_text.grid(row=row, column=1, padx=10, pady=6, sticky="ew")
+        self.desc_text.insert("1.0", "Uzmanlık alanını ve bakış açısını tanımlayın (opsiyonel)...")
 
         row += 1
-        ctk.CTkLabel(self, text="Renk:").grid(row=row, column=0, padx=10, pady=8, sticky="w")
+        ctk.CTkLabel(self, text="Renk:").grid(row=row, column=0, padx=10, pady=6, sticky="w")
         self.color_btn = ctk.CTkButton(
             self, text="Renk Seç", fg_color=self.selected_color,
             command=self._pick_color, width=100,
         )
-        self.color_btn.grid(row=row, column=1, padx=10, pady=8, sticky="w")
+        self.color_btn.grid(row=row, column=1, padx=10, pady=6, sticky="w")
+
+        # === Karakter Özellikleri ===
+        row += 1
+        ctk.CTkLabel(
+            self, text="Karakter Özellikleri (istediğin kadar seç):",
+            font=ctk.CTkFont(weight="bold")
+        ).grid(row=row, column=0, columnspan=2, padx=10, pady=(10, 5), sticky="w")
 
         row += 1
-        self.btn_save = ctk.CTkButton(self, text="Kaydet", command=self._save)
-        self.btn_save.grid(row=row, column=0, columnspan=2, padx=10, pady=15)
+        traits_frame = ctk.CTkScrollableFrame(self, height=280)
+        traits_frame.grid(row=row, column=0, columnspan=2, sticky="nsew", padx=10, pady=5)
+        traits_frame.grid_columnconfigure(0, weight=1)
+
+        self.trait_vars = {}
+        categories = get_trait_categories()
+
+        for cat_name, trait_list in categories.items():
+            cat_label = ctk.CTkLabel(
+                traits_frame, text=f"  {cat_name}",
+                font=ctk.CTkFont(weight="bold", size=13),
+            )
+            cat_label.pack(anchor="w", padx=5, pady=(8, 2))
+
+            cat_frame = ctk.CTkFrame(traits_frame, fg_color="transparent")
+            cat_frame.pack(fill="x", padx=10, pady=2)
+
+            for trait_name in trait_list:
+                var = tk.BooleanVar(value=False)
+                self.trait_vars[trait_name] = var
+                cb = ctk.CTkCheckBox(
+                    cat_frame, text=trait_name,
+                    variable=var, width=140,
+                )
+                cb.pack(side="left", padx=5, pady=2)
+
+        # Kaydet butonu
+        row += 1
+        self.btn_save = ctk.CTkButton(self, text="Kaydet", command=self._save, height=35)
+        self.btn_save.grid(row=row, column=0, columnspan=2, padx=10, pady=10)
 
     def _pick_color(self):
         color = colorchooser.askcolor(initialcolor=self.selected_color)
@@ -72,12 +109,107 @@ class PersonaDialog(ctk.CTkToplevel):
         name = self.name_entry.get().strip()
         role = self.role_entry.get().strip()
         desc = self.desc_text.get("1.0", "end").strip()
+        if desc == "Uzmanlık alanını ve bakış açısını tanımlayın (opsiyonel)...":
+            desc = ""
         if not name or not role:
             return
-        persona_manager.add(name, role, desc, self.selected_color)
+
+        # Seçilen özellikleri topla
+        selected_traits = [t for t, v in self.trait_vars.items() if v.get()]
+        persona_manager.add(name, role, desc, self.selected_color, traits=selected_traits)
         if self.on_save:
             self.on_save()
         self.destroy()
+
+
+class RelationshipDialog(ctk.CTkToplevel):
+    """Kişilikler arası ilişki yönetimi penceresi."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("Kişilik İlişkileri")
+        self.geometry("600x500")
+        self.transient(parent)
+
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(3, weight=1)
+
+        # === İlişki ekleme ===
+        add_frame = ctk.CTkFrame(self)
+        add_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 5))
+        add_frame.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(add_frame, text="🔗 İlişki Tanımla", font=ctk.CTkFont(weight="bold")).grid(
+            row=0, column=0, columnspan=4, padx=10, pady=(5, 2), sticky="w"
+        )
+
+        names = get_personality_names()
+
+        ctk.CTkLabel(add_frame, text="Kim:").grid(row=1, column=0, padx=10, pady=5)
+        self.from_var = tk.StringVar(value=names[0] if names else "")
+        self.from_combo = ctk.CTkComboBox(add_frame, values=names, variable=self.from_var, width=160)
+        self.from_combo.grid(row=1, column=1, padx=5, pady=5)
+
+        ctk.CTkLabel(add_frame, text="→ Kime:").grid(row=1, column=2, padx=5, pady=5)
+        self.to_var = tk.StringVar(value=names[1] if len(names) > 1 else "")
+        self.to_combo = ctk.CTkComboBox(add_frame, values=names, variable=self.to_var, width=160)
+        self.to_combo.grid(row=1, column=3, padx=5, pady=5)
+
+        ctk.CTkLabel(add_frame, text="Düşüncesi:").grid(row=2, column=0, padx=10, pady=5)
+        self.opinion_entry = ctk.CTkEntry(
+            add_frame,
+            placeholder_text="ör: Çok temkinli buluyorum, bazen fırsat kaçırıyoruz yüzünden",
+        )
+        self.opinion_entry.grid(row=2, column=1, columnspan=3, padx=5, pady=5, sticky="ew")
+
+        ctk.CTkButton(
+            add_frame, text="İlişki Kaydet", fg_color="#27ae60", command=self._save_relationship
+        ).grid(row=3, column=0, columnspan=4, pady=10)
+
+        # === Durum ===
+        self.status_label = ctk.CTkLabel(self, text="", anchor="w")
+        self.status_label.grid(row=1, column=0, sticky="ew", padx=15, pady=5)
+
+        # === Mevcut ilişkiler ===
+        ctk.CTkLabel(self, text="Mevcut İlişkiler:", font=ctk.CTkFont(weight="bold")).grid(
+            row=2, column=0, sticky="w", padx=15, pady=(10, 0)
+        )
+        self.rel_text = ctk.CTkTextbox(self, height=200)
+        self.rel_text.grid(row=3, column=0, sticky="nsew", padx=10, pady=(5, 10))
+
+        self._refresh_list()
+
+    def _save_relationship(self):
+        from_name = self.from_var.get().strip()
+        to_name = self.to_var.get().strip()
+        opinion = self.opinion_entry.get().strip()
+
+        if not from_name or not to_name or not opinion:
+            self.status_label.configure(text="❌ Tüm alanları doldur!")
+            return
+        if from_name == to_name:
+            self.status_label.configure(text="❌ Aynı kişilik seçilemez!")
+            return
+
+        persona_manager.set_relationship(from_name, to_name, opinion)
+        self.opinion_entry.delete(0, "end")
+        self.status_label.configure(text=f"✅ {from_name} → {to_name} ilişkisi kaydedildi!")
+        self._refresh_list()
+
+    def _refresh_list(self):
+        self.rel_text.delete("1.0", "end")
+        names = get_personality_names()
+        has_any = False
+        for name in names:
+            rels = persona_manager.get_all_relationships(name)
+            if rels:
+                has_any = True
+                self.rel_text.insert("end", f"🔹 {name}:\n")
+                for to_name, opinion in rels.items():
+                    self.rel_text.insert("end", f"   → {to_name}: \"{opinion}\"\n")
+                self.rel_text.insert("end", "\n")
+        if not has_any:
+            self.rel_text.insert("1.0", "Henüz ilişki tanımlanmamış.\n\nÖrnek:\nŞirket Yöneticisi → Finans Müdürü: \"Çok temkinli, bazen fırsatları kaçırıyoruz\"\nFinans Müdürü → Şirket Yöneticisi: \"Çok hırslı, riskleri görmezden geliyor\"")
 
 
 class FileManagerDialog(ctk.CTkToplevel):
@@ -611,7 +743,7 @@ class MiniAgentApp(ctk.CTk):
         # === Üst bar ===
         top_frame = ctk.CTkFrame(self)
         top_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 5))
-        top_frame.grid_columnconfigure(6, weight=1)
+        top_frame.grid_columnconfigure(7, weight=1)
 
         self.btn_add = ctk.CTkButton(
             top_frame, text="📂 Dosya Ekle", width=110, command=self._add_files
@@ -625,31 +757,37 @@ class MiniAgentApp(ctk.CTk):
         self.btn_clear.grid(row=0, column=1, padx=5, pady=5)
 
         self.btn_new_persona = ctk.CTkButton(
-            top_frame, text="👤 Kişilik Ekle", width=120, fg_color="#8e44ad",
+            top_frame, text="👤 Kişilik", width=90, fg_color="#8e44ad",
             command=self._open_persona_dialog
         )
-        self.btn_new_persona.grid(row=0, column=2, padx=5, pady=5)
+        self.btn_new_persona.grid(row=0, column=2, padx=3, pady=5)
+
+        self.btn_relationships = ctk.CTkButton(
+            top_frame, text="🔗 İlişkiler", width=90, fg_color="#e67e22",
+            command=self._open_relationships
+        )
+        self.btn_relationships.grid(row=0, column=3, padx=3, pady=5)
 
         self.btn_file_mgr = ctk.CTkButton(
-            top_frame, text="📁 Dosya Yönet", width=120, fg_color="#d35400",
+            top_frame, text="📁 Dosya", width=80, fg_color="#d35400",
             command=self._open_file_manager
         )
-        self.btn_file_mgr.grid(row=0, column=3, padx=5, pady=5)
+        self.btn_file_mgr.grid(row=0, column=4, padx=3, pady=5)
 
         self.btn_browser = ctk.CTkButton(
-            top_frame, text="🌐 Tarayıcı", width=110, fg_color="#2c3e50",
+            top_frame, text="🌐 Tarayıcı", width=90, fg_color="#2c3e50",
             command=self._open_browser
         )
-        self.btn_browser.grid(row=0, column=4, padx=5, pady=5)
+        self.btn_browser.grid(row=0, column=5, padx=3, pady=5)
 
         self.btn_dev_team = ctk.CTkButton(
-            top_frame, text="💻 Geliştirme", width=110, fg_color="#2ecc71",
+            top_frame, text="💻 Kodla", width=80, fg_color="#2ecc71",
             command=self._open_dev_team
         )
-        self.btn_dev_team.grid(row=0, column=5, padx=5, pady=5)
+        self.btn_dev_team.grid(row=0, column=6, padx=3, pady=5)
 
         self.file_label = ctk.CTkLabel(top_frame, text="Henüz dosya yüklenmedi", anchor="w")
-        self.file_label.grid(row=0, column=6, padx=10, pady=5, sticky="w")
+        self.file_label.grid(row=0, column=7, padx=10, pady=5, sticky="w")
 
         # === Mod seçimi + kişilik seçiciler ===
         mode_frame = ctk.CTkFrame(self)
@@ -723,6 +861,9 @@ class MiniAgentApp(ctk.CTk):
 
     def _open_file_manager(self):
         FileManagerDialog(self, self.file_mgr)
+
+    def _open_relationships(self):
+        RelationshipDialog(self)
 
     def _open_browser(self):
         BrowserDialog(self)

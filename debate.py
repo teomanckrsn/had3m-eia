@@ -12,6 +12,65 @@ MODEL_NAME = get_chat_model()
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 PERSONAS_FILE = os.path.join(DATA_DIR, "personas.json")
 
+# Karakter özellikleri — kullanıcı bunları seçip kişiliğe ekleyebilir
+PERSONALITY_TRAITS = {
+    # Motivasyon & Enerji
+    "Hırslı": "Son derece hırslı ve hedef odaklısın. Büyük düşünür, sınırları zorlar, asla 'olmaz' demezsin.",
+    "Pozitif": "Her zaman pozitif ve iyimsersin. Fırsatları görür, insanları motive eder, enerjin bulaşıcıdır.",
+    "Sakin": "Sakin ve soğukkanlısın. Kriz anlarında bile panik yapmazsın, mantıklı ve dengeli kararlar verirsin.",
+    "Agresif": "İş dünyasında agresif ve rekabetçisin. Hızlı hareket eder, fırsatları kapmak için yarışırsın.",
+
+    # Düşünme Tarzı
+    "Analitik": "Her şeyi veriye dayalı analiz edersin. Sayılar, grafikler ve istatistiklerle konuşursun.",
+    "Yaratıcı": "Kutunun dışında düşünürsün. Alışılmadık fikirler üretir, yenilikçi çözümler sunarsın.",
+    "Stratejik": "Uzun vadeli düşünür, satranç oynar gibi 3-5 hamle ileriye bakarsın.",
+    "Pratik": "Teoriyle değil pratikte uygulama ile ilgilenirsin. 'Tamam ama bunu nasıl yapacağız?' dersin.",
+    "Detaycı": "Hiçbir detayı kaçırmazsın. İnce eleyip sık dokursun, mükemmeliyetçisin.",
+
+    # İletişim Tarzı
+    "Diplomatik": "Nazik, ölçülü ve diplomatiksin. Kimseyi kırmadan eleştiri yaparsın.",
+    "Dobra": "Lafı dolandırmazsın, ne düşünüyorsan söylersin. Dürüst ve açık sözlüsün.",
+    "İkna Edici": "İnsanları ikna etmekte çok iyisin. Argümanlarını güçlü kurarsın.",
+    "Dinleyici": "Önce dinler, sonra konuşursun. Karşı tarafı anlamaya çalışırsın.",
+
+    # Risk & Karar
+    "Risk Alan": "Hesaplanmış riskler almaktan çekinmezsin. 'Denemeden bilemeyiz' felsefesiyle hareket edersin.",
+    "Temkinli": "Dikkatli ve temkinlisin. Her kararı iki kere düşünür, riskleri minimize edersin.",
+    "Kararlı": "Hızlı karar verir ve arkasında durursun. Kararsızlıktan nefret edersin.",
+
+    # İş Yaklaşımı
+    "Müşteri Odaklı": "Her kararı müşterinin gözünden değerlendirirsin. Müşteri memnuniyeti her şeyin önünde.",
+    "Maliyet Odaklı": "Bütçeye ve maliyete çok dikkat edersin. Gereksiz harcamalardan kaçınırsın.",
+    "Büyüme Odaklı": "Büyüme ve ölçeklenme senin için en önemli şey. Pazar payı kazanmak istersin.",
+    "Kalite Odaklı": "Kaliteden asla taviz vermezsin. 'Az ama öz' felsefesiyle çalışırsın.",
+    "Hız Odaklı": "Hız senin için çok önemli. 'Mükemmel olmasın ama hızlı olsun, sonra düzeltiriz' dersin.",
+}
+
+
+def get_trait_categories() -> dict[str, list[str]]:
+    """Özellikleri kategorilere ayırıp döndür."""
+    categories = {
+        "Motivasyon & Enerji": ["Hırslı", "Pozitif", "Sakin", "Agresif"],
+        "Düşünme Tarzı": ["Analitik", "Yaratıcı", "Stratejik", "Pratik", "Detaycı"],
+        "İletişim Tarzı": ["Diplomatik", "Dobra", "İkna Edici", "Dinleyici"],
+        "Risk & Karar": ["Risk Alan", "Temkinli", "Kararlı"],
+        "İş Yaklaşımı": ["Müşteri Odaklı", "Maliyet Odaklı", "Büyüme Odaklı", "Kalite Odaklı", "Hız Odaklı"],
+    }
+    return categories
+
+
+def get_all_traits() -> list[str]:
+    return list(PERSONALITY_TRAITS.keys())
+
+
+def traits_to_description(traits: list[str]) -> str:
+    """Seçilen özellikleri açıklama metnine çevir."""
+    parts = []
+    for t in traits:
+        if t in PERSONALITY_TRAITS:
+            parts.append(PERSONALITY_TRAITS[t])
+    return " ".join(parts)
+
 # Varsayılan kişilikler (ilk açılışta oluşturulur)
 DEFAULT_PERSONAS = {
     "Kişisel Asistan": {
@@ -95,26 +154,63 @@ class PersonaManager:
     def get(self, name: str) -> dict:
         return self.personas.get(name, {})
 
-    def add(self, name: str, role: str, description: str, color: str = "#2b2b2b"):
+    def add(self, name: str, role: str, description: str, color: str = "#2b2b2b",
+            traits: list[str] = None, relationships: dict = None):
         self.personas[name] = {
             "name": name,
             "role": role,
             "description": description,
             "color": color,
+            "traits": traits or [],
+            "relationships": relationships or {},
         }
         self._save()
+
+    def set_relationship(self, from_name: str, to_name: str, opinion: str):
+        """Kişilikler arası ilişki tanımla. ör: CEO → Finans Müdürü: 'Temkinli buluyorum'"""
+        if from_name in self.personas:
+            rels = self.personas[from_name].get("relationships", {})
+            rels[to_name] = opinion
+            self.personas[from_name]["relationships"] = rels
+            self._save()
+
+    def get_relationship(self, from_name: str, to_name: str) -> str:
+        p = self.personas.get(from_name, {})
+        return p.get("relationships", {}).get(to_name, "")
+
+    def get_all_relationships(self, name: str) -> dict:
+        """Bir kişiliğin tüm ilişkilerini döndür."""
+        p = self.personas.get(name, {})
+        return p.get("relationships", {})
 
     def remove(self, name: str):
         if name in self.personas:
             del self.personas[name]
+            # Diğer kişiliklerdeki ilişkileri de temizle
+            for p in self.personas.values():
+                rels = p.get("relationships", {})
+                if name in rels:
+                    del rels[name]
             self._save()
 
-    def get_system_prompt(self, name: str) -> str:
+    def get_system_prompt(self, name: str, talking_to: str = None) -> str:
         p = self.personas.get(name, {})
-        return (
-            f"Sen {p.get('role', 'bir uzman')}sın. {p.get('description', '')} "
-            f"Her zaman Türkçe konuş. Kısa ve öz cevaplar ver."
-        )
+        prompt = f"Sen {p.get('role', 'bir uzman')}sın. {p.get('description', '')} "
+
+        # Karakter özellikleri
+        traits = p.get("traits", [])
+        if traits:
+            trait_desc = traits_to_description(traits)
+            prompt += f"\n\nKarakter özelliklerin: {trait_desc} "
+
+        # İlişkiler
+        if talking_to:
+            rel = p.get("relationships", {}).get(talking_to, "")
+            if rel:
+                prompt += f"\n\n{talking_to} hakkındaki düşüncen: {rel}. Bu düşüncen cevaplarına yansısın."
+
+        prompt += "\nHer zaman Türkçe konuş. Kısa ve öz cevaplar ver."
+        return prompt
 
 
 # Global instance
@@ -132,9 +228,9 @@ def get_persona_color(name: str) -> str:
 
 def debate(topic: str, persona1: str, persona2: str, rounds: int = 2,
            on_message=None):
-    """İki kişilik arasında tartışma yürüt."""
-    sys1 = persona_manager.get_system_prompt(persona1)
-    sys2 = persona_manager.get_system_prompt(persona2)
+    """İki kişilik arasında tartışma yürüt (ilişkiler dahil)."""
+    sys1 = persona_manager.get_system_prompt(persona1, talking_to=persona2)
+    sys2 = persona_manager.get_system_prompt(persona2, talking_to=persona1)
 
     history1 = [{"role": "system", "content": sys1}]
     history2 = [{"role": "system", "content": sys2}]
