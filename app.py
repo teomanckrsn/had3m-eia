@@ -978,54 +978,218 @@ class DevTeamDialog(ctk.CTkToplevel):
 
 
 class SettingsDialog(ctk.CTkToplevel):
-    """Ayarlar penceresi — dil değiştirme ve diğer ayarlar."""
+    """Ayarlar — dil + model yönetimi."""
 
     def __init__(self, parent, on_save=None):
         super().__init__(parent)
         self.title(t("settings"))
-        self.geometry("400x250")
+        self.geometry("650x700")
         self.transient(parent)
         self.grab_set()
         self.on_save = on_save
 
-        self.grid_columnconfigure(1, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=1)
 
-        # Dil seçimi
-        ctk.CTkLabel(self, text=t("language") + ":", font=ctk.CTkFont(weight="bold")).grid(
-            row=0, column=0, padx=15, pady=15, sticky="w"
-        )
+        # Scrollable container
+        main = ctk.CTkScrollableFrame(self)
+        main.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+        main.grid_columnconfigure(0, weight=1)
+
+        # === DİL ===
+        lang_frame = ctk.CTkFrame(main)
+        lang_frame.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
+        lang_frame.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(
+            lang_frame, text="🌐 " + t("language"),
+            font=ctk.CTkFont(size=15, weight="bold"),
+        ).grid(row=0, column=0, columnspan=2, padx=15, pady=(10, 5), sticky="w")
 
         lang_names = {"tr": "Türkçe", "en": "English"}
-        current = get_language()
-        self.lang_var = tk.StringVar(value=current)
+        self.lang_var = tk.StringVar(value=get_language())
 
-        lang_frame = ctk.CTkFrame(self, fg_color="transparent")
-        lang_frame.grid(row=0, column=1, padx=10, pady=15, sticky="w")
-
+        radio_frame = ctk.CTkFrame(lang_frame, fg_color="transparent")
+        radio_frame.grid(row=1, column=0, columnspan=2, padx=15, pady=(0, 10), sticky="w")
         for lang_code in get_available_languages():
             ctk.CTkRadioButton(
-                lang_frame, text=lang_names.get(lang_code, lang_code),
+                radio_frame, text=lang_names.get(lang_code, lang_code),
                 variable=self.lang_var, value=lang_code,
             ).pack(side="left", padx=10)
 
-        # Bilgi
-        ctk.CTkLabel(
-            self, text="Dil değişikliği uygulamayı yeniden başlattığında aktif olur.",
-            text_color="gray", font=ctk.CTkFont(size=11),
-        ).grid(row=1, column=0, columnspan=2, padx=15, pady=5, sticky="w")
+        # === MODEL YÖNETİMİ ===
+        model_frame = ctk.CTkFrame(main)
+        model_frame.grid(row=1, column=0, sticky="ew", padx=5, pady=10)
+        model_frame.grid_columnconfigure(1, weight=1)
 
         ctk.CTkLabel(
-            self, text="Language change takes effect after restarting the app.",
-            text_color="gray", font=ctk.CTkFont(size=11),
-        ).grid(row=2, column=0, columnspan=2, padx=15, pady=0, sticky="w")
+            model_frame, text="🧠 Model Yönetimi",
+            font=ctk.CTkFont(size=15, weight="bold"),
+        ).grid(row=0, column=0, columnspan=3, padx=15, pady=(10, 5), sticky="w")
+
+        from model_config import (
+            get_installed_models, get_chat_model, get_code_model,
+            set_user_model, delete_model, pull_model, POPULAR_MODELS,
+        )
+        self._set_user_model = set_user_model
+        self._delete_model = delete_model
+        self._pull_model = pull_model
+        self._get_installed = get_installed_models
+
+        installed = get_installed_models()
+        current_chat = get_chat_model()
+        current_code = get_code_model()
+
+        # Sohbet modeli
+        ctk.CTkLabel(model_frame, text="Sohbet:").grid(
+            row=1, column=0, padx=(15, 5), pady=5, sticky="w"
+        )
+        self.chat_model_var = tk.StringVar(value=current_chat)
+        self.chat_combo = ctk.CTkComboBox(
+            model_frame, values=installed or ["yok"],
+            variable=self.chat_model_var, width=300,
+        )
+        self.chat_combo.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+
+        # Kod modeli
+        ctk.CTkLabel(model_frame, text="Kod:").grid(
+            row=2, column=0, padx=(15, 5), pady=5, sticky="w"
+        )
+        self.code_model_var = tk.StringVar(value=current_code)
+        self.code_combo = ctk.CTkComboBox(
+            model_frame, values=installed or ["yok"],
+            variable=self.code_model_var, width=300,
+        )
+        self.code_combo.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
+
+        # Kurulu modeller listesi + sil
+        ctk.CTkLabel(
+            model_frame, text="Kurulu Modeller:",
+            font=ctk.CTkFont(weight="bold"),
+        ).grid(row=3, column=0, columnspan=2, padx=15, pady=(10, 3), sticky="w")
+
+        self.installed_frame = ctk.CTkFrame(model_frame, fg_color="transparent")
+        self.installed_frame.grid(row=4, column=0, columnspan=2, padx=15, pady=5, sticky="ew")
+        self.installed_frame.grid_columnconfigure(0, weight=1)
+
+        self._refresh_installed()
+
+        # === İNDİRİLEBİLİR MODELLER ===
+        popular_frame = ctk.CTkFrame(main)
+        popular_frame.grid(row=2, column=0, sticky="ew", padx=5, pady=10)
+        popular_frame.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            popular_frame, text="⬇️ İndirilebilir Modeller",
+            font=ctk.CTkFont(size=15, weight="bold"),
+        ).grid(row=0, column=0, padx=15, pady=(10, 5), sticky="w")
+
+        for i, m in enumerate(POPULAR_MODELS):
+            row_frame = ctk.CTkFrame(popular_frame, fg_color="transparent")
+            row_frame.grid(row=i + 1, column=0, sticky="ew", padx=15, pady=2)
+            row_frame.grid_columnconfigure(0, weight=1)
+
+            text = f"{m['name']}  ({m['size']})  —  {m['desc']}"
+            already = any(m["name"] in inst for inst in installed)
+
+            ctk.CTkLabel(
+                row_frame, text=text,
+                text_color="gray" if already else "white",
+                anchor="w",
+            ).grid(row=0, column=0, sticky="ew", padx=5)
+
+            if already:
+                ctk.CTkLabel(row_frame, text="✓ Kurulu", text_color="#27ae60").grid(
+                    row=0, column=1, padx=5
+                )
+            else:
+                ctk.CTkButton(
+                    row_frame, text="⬇️ İndir", width=80, fg_color="#2980b9",
+                    command=lambda name=m["name"]: self._download_model(name),
+                ).grid(row=0, column=1, padx=5)
+
+        # Durum
+        self.status_label = ctk.CTkLabel(self, text="", anchor="w")
+        self.status_label.grid(row=1, column=0, sticky="ew", padx=15, pady=5)
 
         # Kaydet
         ctk.CTkButton(
-            self, text=t("save"), fg_color="#27ae60", command=self._save
-        ).grid(row=3, column=0, columnspan=2, padx=15, pady=20)
+            self, text=t("save"), fg_color="#27ae60", command=self._save, height=40,
+        ).grid(row=2, column=0, sticky="ew", padx=15, pady=(5, 15))
+
+    def _refresh_installed(self):
+        for widget in self.installed_frame.winfo_children():
+            widget.destroy()
+        installed = self._get_installed()
+        if not installed:
+            ctk.CTkLabel(
+                self.installed_frame, text="Kurulu model yok.",
+                text_color="gray",
+            ).grid(row=0, column=0, sticky="w")
+            return
+        for i, name in enumerate(installed):
+            row_frame = ctk.CTkFrame(self.installed_frame, fg_color="transparent")
+            row_frame.grid(row=i, column=0, sticky="ew", pady=2)
+            row_frame.grid_columnconfigure(0, weight=1)
+
+            ctk.CTkLabel(row_frame, text=f"  • {name}", anchor="w").grid(
+                row=0, column=0, sticky="ew"
+            )
+            ctk.CTkButton(
+                row_frame, text="🗑 Sil", width=60, fg_color="#c0392b",
+                command=lambda n=name: self._delete_installed(n),
+            ).grid(row=0, column=1, padx=5)
+
+    def _delete_installed(self, name: str):
+        self.status_label.configure(text=f"Siliniyor: {name}...")
+        self.update()
+
+        def work():
+            ok = self._delete_model(name)
+            if ok:
+                self.after(0, lambda: self.status_label.configure(text=f"✅ {name} silindi"))
+                self.after(0, self._refresh_installed)
+                # Combobox'ları da güncelle
+                installed = self._get_installed()
+                if installed:
+                    self.after(0, lambda: self.chat_combo.configure(values=installed))
+                    self.after(0, lambda: self.code_combo.configure(values=installed))
+            else:
+                self.after(0, lambda: self.status_label.configure(text=f"❌ Silinemedi: {name}"))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _download_model(self, name: str):
+        self.status_label.configure(text=f"İndiriliyor: {name}...")
+
+        def progress(msg):
+            self.after(0, lambda m=msg: self.status_label.configure(text=f"⬇️ {name}: {m}"))
+
+        def work():
+            ok = self._pull_model(name, on_progress=progress)
+            if ok:
+                self.after(0, lambda: self.status_label.configure(text=f"✅ {name} indirildi"))
+                self.after(0, self._refresh_installed)
+                installed = self._get_installed()
+                self.after(0, lambda: self.chat_combo.configure(values=installed))
+                self.after(0, lambda: self.code_combo.configure(values=installed))
+            else:
+                self.after(0, lambda: self.status_label.configure(text=f"❌ İndirilemedi: {name}"))
+
+        threading.Thread(target=work, daemon=True).start()
 
     def _save(self):
         set_language(self.lang_var.get())
+
+        # Model seçimlerini kaydet
+        chat = self.chat_model_var.get()
+        code = self.code_model_var.get()
+        installed = self._get_installed()
+        if chat in installed:
+            self._set_user_model("chat", chat)
+        if code in installed:
+            self._set_user_model("code", code)
+
         if self.on_save:
             self.on_save()
         self.destroy()
