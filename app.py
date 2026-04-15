@@ -1039,6 +1039,9 @@ class MiniAgentApp(ctk.CTk):
         self.geometry("1000x800")
         self.minsize(800, 600)
 
+        # İkonu ayarla (pencere + dock)
+        self._set_icon()
+
         self.engine = None
         self.file_mgr = FileManager()
         self.current_answer = ""
@@ -1046,6 +1049,19 @@ class MiniAgentApp(ctk.CTk):
 
         self._build_ui()
         self._init_engine()
+
+    def _set_icon(self):
+        """Uygulama ikonunu ayarla (macOS, Windows, Linux)."""
+        icon_path = os.path.join(os.path.dirname(__file__), "icon.png")
+        if not os.path.exists(icon_path):
+            return
+        try:
+            from PIL import Image, ImageTk
+            img = Image.open(icon_path)
+            self._icon_image = ImageTk.PhotoImage(img)
+            self.iconphoto(True, self._icon_image)
+        except Exception as e:
+            print(f"İkon yüklenemedi: {e}")
 
     def _build_ui(self):
         # İki sütun: sol sidebar (AI listesi), sağ ana içerik
@@ -1059,10 +1075,27 @@ class MiniAgentApp(ctk.CTk):
         self.sidebar.grid_columnconfigure(0, weight=1)
         self.sidebar.grid_rowconfigure(2, weight=1)
 
+        # Logo + başlık
+        header_frame = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        header_frame.grid(row=0, column=0, padx=15, pady=(15, 5), sticky="ew")
+
+        try:
+            from PIL import Image
+            icon_path = os.path.join(os.path.dirname(__file__), "icon.png")
+            if os.path.exists(icon_path):
+                logo_img = ctk.CTkImage(
+                    light_image=Image.open(icon_path),
+                    dark_image=Image.open(icon_path),
+                    size=(48, 48),
+                )
+                ctk.CTkLabel(header_frame, image=logo_img, text="").pack(side="left", padx=(0, 8))
+        except Exception:
+            pass
+
         ctk.CTkLabel(
-            self.sidebar, text="🤖 Yapay Zekalar",
-            font=ctk.CTkFont(size=16, weight="bold"),
-        ).grid(row=0, column=0, padx=15, pady=(15, 5), sticky="w")
+            header_frame, text="HAD3M-EIA",
+            font=ctk.CTkFont(size=18, weight="bold"),
+        ).pack(side="left")
 
         btn_new_ai = ctk.CTkButton(
             self.sidebar, text="+ Yeni AI Oluştur",
