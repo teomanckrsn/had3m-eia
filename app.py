@@ -47,7 +47,7 @@ class AIChatDialog(ctk.CTkToplevel):
         self.system_prompt = persona_manager.get_system_prompt(ai_name)
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=1)
+        self.grid_rowconfigure(2, weight=1)
 
         # Başlık çubuğu
         header = ctk.CTkFrame(self, fg_color=persona.get("color", "#8e44ad"), corner_radius=0)
@@ -92,16 +92,33 @@ class AIChatDialog(ctk.CTkToplevel):
             fg_color="#c0392b", hover_color="#a93226",
             command=self._clear_history,
         )
-        btn_clear.grid(row=0, column=1, rowspan=2, padx=10, pady=8)
+        btn_clear.grid(row=0, column=1, rowspan=3, padx=10, pady=8)
+
+        # Arama çubuğu
+        search_frame = ctk.CTkFrame(self, fg_color="transparent")
+        search_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=(5, 0))
+        search_frame.grid_columnconfigure(0, weight=1)
+
+        self.search_entry = ctk.CTkEntry(
+            search_frame, placeholder_text="🔍 Geçmişte ara...", height=32,
+        )
+        self.search_entry.grid(row=0, column=0, padx=(5, 5), pady=3, sticky="ew")
+        self.search_entry.bind("<KeyRelease>", lambda e: self._on_search())
+
+        self.btn_clear_search = ctk.CTkButton(
+            search_frame, text="✕", width=32, height=32,
+            fg_color="gray", command=self._clear_search,
+        )
+        self.btn_clear_search.grid(row=0, column=1, padx=3, pady=3)
 
         # Sohbet alanı
         self.chat_frame = ctk.CTkScrollableFrame(self, label_text="Sohbet")
-        self.chat_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=5)
+        self.chat_frame.grid(row=2, column=0, sticky="nsew", padx=10, pady=5)
         self.chat_frame.grid_columnconfigure(0, weight=1)
 
         # Giriş alanı
         input_frame = ctk.CTkFrame(self)
-        input_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=(5, 10))
+        input_frame.grid(row=3, column=0, sticky="ew", padx=10, pady=(5, 10))
         input_frame.grid_columnconfigure(0, weight=1)
 
         self.entry = ctk.CTkEntry(
@@ -140,10 +157,27 @@ class AIChatDialog(ctk.CTkToplevel):
         ).pack(fill="x")
         self.chat_frame._parent_canvas.yview_moveto(1.0)
 
-    def _load_history(self):
-        """Kayıtlı geçmişi göster."""
-        for msg in self.history.get_messages():
+    def _load_history(self, messages=None):
+        """Kayıtlı geçmişi göster. messages verilmezse tüm geçmiş."""
+        # Önce sohbet alanını temizle
+        for widget in self.chat_frame.winfo_children():
+            widget.destroy()
+
+        msgs = messages if messages is not None else self.history.get_messages()
+        for msg in msgs:
             self._add_bubble(msg["content"], is_user=(msg["role"] == "user"))
+
+    def _on_search(self):
+        query = self.search_entry.get().strip()
+        if not query:
+            self._load_history()
+            return
+        results = self.history.search(query)
+        self._load_history(messages=results)
+
+    def _clear_search(self):
+        self.search_entry.delete(0, "end")
+        self._load_history()
 
     def _clear_history(self):
         self.history.clear()

@@ -57,3 +57,37 @@ class ChatHistory:
             {"role": m["role"], "content": m["content"]}
             for m in self.messages[-max_messages:]
         ]
+
+    def search(self, query: str) -> list:
+        """Mesajlarda arama yap. Eşleşenleri döndür."""
+        if not query:
+            return list(self.messages)
+        q = query.lower().strip()
+        return [m for m in self.messages if q in m["content"].lower()]
+
+
+def search_all_chats(query: str) -> list:
+    """Tüm AI sohbet geçmişlerinde arama yap."""
+    import os
+    results = []
+    if not os.path.exists(CHATS_DIR):
+        return results
+    for fname in os.listdir(CHATS_DIR):
+        if not fname.endswith(".json"):
+            continue
+        ai_name = fname[:-5]
+        try:
+            with open(os.path.join(CHATS_DIR, fname), "r", encoding="utf-8") as f:
+                messages = json.load(f)
+                q = query.lower().strip()
+                for m in messages:
+                    if q in m["content"].lower():
+                        results.append({
+                            "ai_name": ai_name,
+                            "role": m["role"],
+                            "content": m["content"],
+                            "timestamp": m.get("timestamp", ""),
+                        })
+        except Exception:
+            continue
+    return results
