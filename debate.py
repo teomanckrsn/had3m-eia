@@ -204,6 +204,37 @@ class PersonaManager:
             if rel:
                 prompt += f"\n\n{talking_to} hakkındaki düşüncen: {rel}. Bu düşüncen cevaplarına yansısın."
 
+        # İzinler — AI ne yapabileceğini bilsin
+        perms = p.get("permissions", {})
+        allowed = []
+        denied = []
+        if perms.get("can_move_files"):
+            allowed.append("dosya taşıma")
+        else:
+            denied.append("dosya taşıma")
+        if perms.get("can_create_files"):
+            allowed.append("dosya oluşturma")
+        else:
+            denied.append("dosya oluşturma")
+        if perms.get("can_use_browser"):
+            allowed.append("tarayıcı kullanma")
+        else:
+            denied.append("tarayıcı kullanma")
+        if perms.get("can_write_code"):
+            allowed.append("kod yazma")
+        else:
+            denied.append("kod yazma")
+
+        if allowed or denied:
+            prompt += "\n\n--- YETKİLERİN ---\n"
+            if allowed:
+                prompt += f"Yapabileceğin işler: {', '.join(allowed)}.\n"
+            if denied:
+                prompt += (
+                    f"YAPAMAYACAĞIN işler: {', '.join(denied)}. "
+                    f"Kullanıcı bunları isterse 'Bu yetkim yok, ayarlardan aktif edebilirsin' de.\n"
+                )
+
         prompt += "\nHer zaman Türkçe konuş. Kısa ve öz cevaplar ver."
         return prompt
 

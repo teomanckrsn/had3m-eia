@@ -64,7 +64,28 @@ class AIChatDialog(ctk.CTkToplevel):
             header, text=persona.get("description", "")[:60] + "...",
             font=ctk.CTkFont(size=11),
             text_color="#ddd", padx=15,
-        ).grid(row=1, column=0, sticky="w", pady=(0, 8))
+        ).grid(row=1, column=0, sticky="w", pady=(0, 3))
+
+        # İzin rozetleri
+        perms = persona.get("permissions", {})
+        perm_icons = []
+        if perms.get("can_move_files"):
+            perm_icons.append("📁")
+        if perms.get("can_create_files"):
+            perm_icons.append("📝")
+        if perms.get("can_use_browser"):
+            perm_icons.append("🌐")
+        if perms.get("can_write_code"):
+            perm_icons.append("💻")
+        if perms.get("can_debate"):
+            perm_icons.append("⚔️")
+
+        perm_text = "Yetkiler: " + (" ".join(perm_icons) if perm_icons else "Yok")
+        ctk.CTkLabel(
+            header, text=perm_text,
+            font=ctk.CTkFont(size=10),
+            text_color="#fff", padx=15,
+        ).grid(row=2, column=0, sticky="w", pady=(0, 8))
 
         btn_clear = ctk.CTkButton(
             header, text="🗑 Geçmişi Temizle", width=130,
