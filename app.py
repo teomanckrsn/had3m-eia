@@ -1032,6 +1032,178 @@ class DevTeamDialog(ctk.CTkToplevel):
         threading.Thread(target=work, daemon=True).start()
 
 
+class TelegramDialog(ctk.CTkToplevel):
+    """Telegram botu başlat/durdur + token yönetimi."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("📱 Telegram Botu")
+        self.geometry("550x450")
+        self.transient(parent)
+
+        self.process = None  # subprocess handle
+
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(4, weight=1)
+
+        # Başlık
+        ctk.CTkLabel(
+            self, text="📱 Telegram Botu",
+            font=ctk.CTkFont(size=18, weight="bold"),
+        ).grid(row=0, column=0, padx=20, pady=(20, 5), sticky="w")
+
+        ctk.CTkLabel(
+            self,
+            text="AI'na telefondan Telegram üzerinden eriş.\n"
+            "Mesajlar internet üzerinden gider ama AI modeli yerelde kalır.",
+            text_color="gray",
+        ).grid(row=1, column=0, padx=20, pady=(0, 15), sticky="w")
+
+        # Token
+        token_frame = ctk.CTkFrame(self)
+        token_frame.grid(row=2, column=0, sticky="ew", padx=20, pady=5)
+        token_frame.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            token_frame, text="Bot Token:",
+            font=ctk.CTkFont(weight="bold"),
+        ).grid(row=0, column=0, columnspan=2, padx=15, pady=(10, 3), sticky="w")
+
+        ctk.CTkLabel(
+            token_frame,
+            text="@BotFather'dan al (t.me/BotFather). /newbot komutu ile yeni bot oluştur.",
+            text_color="gray", font=ctk.CTkFont(size=11),
+        ).grid(row=1, column=0, columnspan=2, padx=15, pady=0, sticky="w")
+
+        # Mevcut token yüklensin
+        current_token = self._load_token()
+        self.token_entry = ctk.CTkEntry(
+            token_frame,
+            placeholder_text="123456789:ABC-DEF...", height=35, show="•",
+        )
+        self.token_entry.grid(row=2, column=0, padx=15, pady=5, sticky="ew")
+        if current_token:
+            self.token_entry.insert(0, current_token)
+
+        ctk.CTkButton(
+            token_frame, text="Kaydet", width=80, fg_color="#27ae60",
+            command=self._save_token,
+        ).grid(row=2, column=1, padx=(0, 15), pady=5)
+
+        # Başlat / Durdur
+        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
+        btn_frame.grid(row=3, column=0, sticky="ew", padx=20, pady=10)
+        btn_frame.grid_columnconfigure((0, 1), weight=1)
+
+        self.btn_start = ctk.CTkButton(
+            btn_frame, text="▶ Botu Başlat", height=40, fg_color="#27ae60",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            command=self._start_bot,
+        )
+        self.btn_start.grid(row=0, column=0, padx=5, sticky="ew")
+
+        self.btn_stop = ctk.CTkButton(
+            btn_frame, text="⏹ Botu Durdur", height=40, fg_color="#c0392b",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            command=self._stop_bot, state="disabled",
+        )
+        self.btn_stop.grid(row=0, column=1, padx=5, sticky="ew")
+
+        # Durum
+        self.status_label = ctk.CTkLabel(
+            self, text="⚫ Bot durdu", anchor="w",
+            font=ctk.CTkFont(size=13),
+        )
+        self.status_label.grid(row=4, column=0, sticky="nw", padx=20, pady=10)
+
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+
+    def _load_token(self) -> str:
+        import json
+        settings_file = os.path.join(os.path.dirname(__file__), "data", "settings.json")
+        if os.path.exists(settings_file):
+            with open(settings_file, "r", encoding="utf-8") as f:
+                return json.load(f).get("telegram_token", "")
+        return ""
+
+    def _save_token(self):
+        import json
+        token = self.token_entry.get().strip()
+        if not token:
+            self.status_label.configure(text="❌ Token boş olamaz")
+            return
+
+        data_dir = os.path.join(os.path.dirname(__file__), "data")
+        os.makedirs(data_dir, exist_ok=True)
+        settings_file = os.path.join(data_dir, "settings.json")
+
+        settings = {}
+        if os.path.exists(settings_file):
+            with open(settings_file, "r", encoding="utf-8") as f:
+                settings = json.load(f)
+        settings["telegram_token"] = token
+        with open(settings_file, "w", encoding="utf-8") as f:
+            json.dump(settings, f, ensure_ascii=False, indent=2)
+
+        self.status_label.configure(text="✅ Token kaydedildi")
+
+    def _start_bot(self):
+        import subprocess
+        token = self.token_entry.get().strip()
+        if not token:
+            self.status_label.configure(text="❌ Önce token kaydet")
+            return
+
+        if self.process and self.process.poll() is None:
+            self.status_label.configure(text="⚠️ Bot zaten çalışıyor")
+            return
+
+        # Token'ı kaydet (otomatik)
+        self._save_token()
+
+        # Subprocess başlat
+        project_dir = os.path.dirname(__file__)
+        python_path = os.path.join(project_dir, "venv", "bin", "python3")
+        if not os.path.exists(python_path):
+            python_path = "python3"
+        script = os.path.join(project_dir, "telegram_bot.py")
+
+        try:
+            self.process = subprocess.Popen(
+                [python_path, script],
+                cwd=project_dir,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            self.status_label.configure(text="🟢 Bot çalışıyor — Telegram'dan mesaj gönderebilirsin")
+            self.btn_start.configure(state="disabled")
+            self.btn_stop.configure(state="normal")
+        except Exception as e:
+            self.status_label.configure(text=f"❌ Başlatılamadı: {e}")
+
+    def _stop_bot(self):
+        if self.process:
+            try:
+                self.process.terminate()
+                self.process.wait(timeout=5)
+            except Exception:
+                try:
+                    self.process.kill()
+                except Exception:
+                    pass
+            self.process = None
+
+        self.status_label.configure(text="⚫ Bot durduruldu")
+        self.btn_start.configure(state="normal")
+        self.btn_stop.configure(state="disabled")
+
+    def _on_close(self):
+        if self.process and self.process.poll() is None:
+            self._stop_bot()
+        self.destroy()
+
+
 class SettingsDialog(ctk.CTkToplevel):
     """Ayarlar — dil + model yönetimi."""
 
@@ -1330,7 +1502,7 @@ class MiniAgentApp(ctk.CTk):
         # === Üst bar ===
         top_frame = ctk.CTkFrame(self)
         top_frame.grid(row=0, column=1, sticky="ew", padx=10, pady=(10, 5))
-        top_frame.grid_columnconfigure(8, weight=1)
+        top_frame.grid_columnconfigure(9, weight=1)
 
         self.btn_add = ctk.CTkButton(
             top_frame, text=t("add_file"), width=110, command=self._add_files
@@ -1373,14 +1545,20 @@ class MiniAgentApp(ctk.CTk):
         )
         self.btn_dev_team.grid(row=0, column=6, padx=3, pady=5)
 
+        self.btn_telegram = ctk.CTkButton(
+            top_frame, text="📱 Telegram", width=95, fg_color="#3498db",
+            command=self._open_telegram
+        )
+        self.btn_telegram.grid(row=0, column=7, padx=3, pady=5)
+
         self.btn_settings = ctk.CTkButton(
             top_frame, text=t("settings_btn"), width=70, fg_color="#7f8c8d",
             command=self._open_settings
         )
-        self.btn_settings.grid(row=0, column=7, padx=3, pady=5)
+        self.btn_settings.grid(row=0, column=8, padx=3, pady=5)
 
         self.file_label = ctk.CTkLabel(top_frame, text=t("no_files"), anchor="w")
-        self.file_label.grid(row=0, column=8, padx=10, pady=5, sticky="w")
+        self.file_label.grid(row=0, column=9, padx=10, pady=5, sticky="w")
 
         # === Mod seçimi + kişilik seçiciler ===
         mode_frame = ctk.CTkFrame(self)
@@ -1533,6 +1711,9 @@ class MiniAgentApp(ctk.CTk):
 
     def _open_settings(self):
         SettingsDialog(self)
+
+    def _open_telegram(self):
+        TelegramDialog(self)
 
     def _open_relationships(self):
         RelationshipDialog(self)
