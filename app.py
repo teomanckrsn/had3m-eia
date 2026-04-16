@@ -32,7 +32,7 @@ class AIChatDialog(ctk.CTkToplevel):
         self.ai_name = ai_name
         persona = persona_manager.get(ai_name)
 
-        self.title(f"💬 {ai_name}")
+        self.title(f"💬 {ai_name}")  # i18n: kept name as-is
         self.geometry("750x650")
         self.transient(parent)
 
@@ -80,7 +80,7 @@ class AIChatDialog(ctk.CTkToplevel):
         if perms.get("can_debate"):
             perm_icons.append("⚔️")
 
-        perm_text = "Yetkiler: " + (" ".join(perm_icons) if perm_icons else "Yok")
+        perm_text = t("permissions_label") + " " + (" ".join(perm_icons) if perm_icons else "—")
         ctk.CTkLabel(
             header, text=perm_text,
             font=ctk.CTkFont(size=10),
@@ -88,7 +88,7 @@ class AIChatDialog(ctk.CTkToplevel):
         ).grid(row=2, column=0, sticky="w", pady=(0, 8))
 
         btn_clear = ctk.CTkButton(
-            header, text="🗑 Geçmişi Temizle", width=130,
+            header, text=t("clear_history"), width=150,
             fg_color="#c0392b", hover_color="#a93226",
             command=self._clear_history,
         )
@@ -100,7 +100,7 @@ class AIChatDialog(ctk.CTkToplevel):
         search_frame.grid_columnconfigure(0, weight=1)
 
         self.search_entry = ctk.CTkEntry(
-            search_frame, placeholder_text="🔍 Geçmişte ara...", height=32,
+            search_frame, placeholder_text=t("search_history"), height=32,
         )
         self.search_entry.grid(row=0, column=0, padx=(5, 5), pady=3, sticky="ew")
         self.search_entry.bind("<KeyRelease>", lambda e: self._on_search())
@@ -112,7 +112,7 @@ class AIChatDialog(ctk.CTkToplevel):
         self.btn_clear_search.grid(row=0, column=1, padx=3, pady=3)
 
         # Sohbet alanı
-        self.chat_frame = ctk.CTkScrollableFrame(self, label_text="Sohbet")
+        self.chat_frame = ctk.CTkScrollableFrame(self, label_text=t("chat_label"))
         self.chat_frame.grid(row=2, column=0, sticky="nsew", padx=10, pady=5)
         self.chat_frame.grid_columnconfigure(0, weight=1)
 
@@ -122,14 +122,14 @@ class AIChatDialog(ctk.CTkToplevel):
         input_frame.grid_columnconfigure(0, weight=1)
 
         self.entry = ctk.CTkEntry(
-            input_frame, placeholder_text=f"{ai_name}'a yazın...", height=40,
+            input_frame, placeholder_text=f"{t('write_to')}{ai_name}...", height=40,
         )
         self.entry.grid(row=0, column=0, padx=(5, 5), pady=5, sticky="ew")
         self.entry.bind("<Return>", lambda e: self._send())
         self.entry.focus_set()
 
         self.btn_send = ctk.CTkButton(
-            input_frame, text="Gönder", width=80,
+            input_frame, text=t("send"), width=80,
             command=self._send, fg_color="#27ae60",
         )
         self.btn_send.grid(row=0, column=1, padx=5, pady=5)
@@ -221,7 +221,7 @@ class CreateAIDialog(ctk.CTkToplevel):
 
     def __init__(self, parent, on_save=None):
         super().__init__(parent)
-        self.title("🤖 Yeni AI Oluştur")
+        self.title(t("create_ai_title"))
         self.geometry("520x480")
         self.transient(parent)
         self.grab_set()
@@ -232,12 +232,12 @@ class CreateAIDialog(ctk.CTkToplevel):
 
         # Başlık
         ctk.CTkLabel(
-            self, text="🤖 Yeni AI Oluştur",
+            self, text=t("create_ai_title"),
             font=ctk.CTkFont(size=20, weight="bold"),
         ).grid(row=0, column=0, padx=20, pady=(20, 5), sticky="w")
 
         ctk.CTkLabel(
-            self, text="Kendi yapay zekanı oluştur. İsim ver, görev tanımını yaz.",
+            self, text=t("create_ai_subtitle"),
             text_color="gray",
         ).grid(row=1, column=0, padx=20, pady=(0, 15), sticky="w")
 
@@ -248,11 +248,11 @@ class CreateAIDialog(ctk.CTkToplevel):
 
         # İsim
         ctk.CTkLabel(
-            form, text="İsim", font=ctk.CTkFont(weight="bold"),
+            form, text=t("ai_name_label"), font=ctk.CTkFont(weight="bold"),
         ).grid(row=0, column=0, padx=15, pady=(15, 3), sticky="w")
 
         self.name_entry = ctk.CTkEntry(
-            form, placeholder_text="örn: Halime, Ayşe, Pazarlama Asistanı",
+            form, placeholder_text=t("ai_name_placeholder"),
             height=38,
         )
         self.name_entry.grid(row=1, column=0, padx=15, pady=(0, 10), sticky="ew")
@@ -260,26 +260,22 @@ class CreateAIDialog(ctk.CTkToplevel):
 
         # Görev tanımı
         ctk.CTkLabel(
-            form, text="Görev Tanımı (Prompt)",
+            form, text=t("ai_task_label"),
             font=ctk.CTkFont(weight="bold"),
         ).grid(row=2, column=0, padx=15, pady=(10, 3), sticky="w")
 
         ctk.CTkLabel(
-            form, text="Nasıl biri olmalı? Ne iş yapacak? Karakteri nasıl olsun?",
+            form, text=t("ai_task_hint"),
             text_color="gray", font=ctk.CTkFont(size=11),
         ).grid(row=3, column=0, padx=15, pady=0, sticky="w")
 
         self.task_text = ctk.CTkTextbox(form, height=140)
         self.task_text.grid(row=4, column=0, padx=15, pady=(5, 15), sticky="ew")
-        self.task_text.insert(
-            "1.0",
-            "Sen benim kişisel asistanımsın. Günlük işlerimde bana yardım ediyorsun. "
-            "Organize, pratik ve çözüm odaklısın. Kısa ve net cevaplar verirsin.",
-        )
+        self.task_text.insert("1.0", t("ai_task_default"))
 
         # Oluştur butonu
         self.btn_create = ctk.CTkButton(
-            self, text="✨ Oluştur", height=42,
+            self, text=t("create_btn"), height=42,
             font=ctk.CTkFont(size=14, weight="bold"),
             fg_color="#8e44ad", hover_color="#7d3c98",
             command=self._create,
@@ -1037,7 +1033,7 @@ class TelegramDialog(ctk.CTkToplevel):
 
     def __init__(self, parent):
         super().__init__(parent)
-        self.title("📱 Telegram Botu")
+        self.title(t("telegram_title"))
         self.geometry("550x450")
         self.transient(parent)
 
@@ -1048,14 +1044,12 @@ class TelegramDialog(ctk.CTkToplevel):
 
         # Başlık
         ctk.CTkLabel(
-            self, text="📱 Telegram Botu",
+            self, text=t("telegram_title"),
             font=ctk.CTkFont(size=18, weight="bold"),
         ).grid(row=0, column=0, padx=20, pady=(20, 5), sticky="w")
 
         ctk.CTkLabel(
-            self,
-            text="AI'na telefondan Telegram üzerinden eriş.\n"
-            "Mesajlar internet üzerinden gider ama AI modeli yerelde kalır.",
+            self, text=t("telegram_desc"),
             text_color="gray",
         ).grid(row=1, column=0, padx=20, pady=(0, 15), sticky="w")
 
@@ -1065,13 +1059,12 @@ class TelegramDialog(ctk.CTkToplevel):
         token_frame.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
-            token_frame, text="Bot Token:",
+            token_frame, text=t("telegram_token_label"),
             font=ctk.CTkFont(weight="bold"),
         ).grid(row=0, column=0, columnspan=2, padx=15, pady=(10, 3), sticky="w")
 
         ctk.CTkLabel(
-            token_frame,
-            text="@BotFather'dan al (t.me/BotFather). /newbot komutu ile yeni bot oluştur.",
+            token_frame, text=t("telegram_token_hint"),
             text_color="gray", font=ctk.CTkFont(size=11),
         ).grid(row=1, column=0, columnspan=2, padx=15, pady=0, sticky="w")
 
@@ -1086,7 +1079,7 @@ class TelegramDialog(ctk.CTkToplevel):
             self.token_entry.insert(0, current_token)
 
         ctk.CTkButton(
-            token_frame, text="Kaydet", width=80, fg_color="#27ae60",
+            token_frame, text=t("save"), width=80, fg_color="#27ae60",
             command=self._save_token,
         ).grid(row=2, column=1, padx=(0, 15), pady=5)
 
@@ -1096,14 +1089,14 @@ class TelegramDialog(ctk.CTkToplevel):
         btn_frame.grid_columnconfigure((0, 1), weight=1)
 
         self.btn_start = ctk.CTkButton(
-            btn_frame, text="▶ Botu Başlat", height=40, fg_color="#27ae60",
+            btn_frame, text=t("telegram_start"), height=40, fg_color="#27ae60",
             font=ctk.CTkFont(size=14, weight="bold"),
             command=self._start_bot,
         )
         self.btn_start.grid(row=0, column=0, padx=5, sticky="ew")
 
         self.btn_stop = ctk.CTkButton(
-            btn_frame, text="⏹ Botu Durdur", height=40, fg_color="#c0392b",
+            btn_frame, text=t("telegram_stop"), height=40, fg_color="#c0392b",
             font=ctk.CTkFont(size=14, weight="bold"),
             command=self._stop_bot, state="disabled",
         )
@@ -1111,7 +1104,7 @@ class TelegramDialog(ctk.CTkToplevel):
 
         # Durum
         self.status_label = ctk.CTkLabel(
-            self, text="⚫ Bot durdu", anchor="w",
+            self, text=t("telegram_stopped"), anchor="w",
             font=ctk.CTkFont(size=13),
         )
         self.status_label.grid(row=4, column=0, sticky="nw", padx=20, pady=10)
@@ -1176,7 +1169,7 @@ class TelegramDialog(ctk.CTkToplevel):
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-            self.status_label.configure(text="🟢 Bot çalışıyor — Telegram'dan mesaj gönderebilirsin")
+            self.status_label.configure(text=t("telegram_running"))
             self.btn_start.configure(state="disabled")
             self.btn_stop.configure(state="normal")
         except Exception as e:
@@ -1194,7 +1187,7 @@ class TelegramDialog(ctk.CTkToplevel):
                     pass
             self.process = None
 
-        self.status_label.configure(text="⚫ Bot durduruldu")
+        self.status_label.configure(text=t("telegram_stopped"))
         self.btn_start.configure(state="normal")
         self.btn_stop.configure(state="disabled")
 
@@ -1486,10 +1479,10 @@ class MiniAgentApp(ctk.CTk):
         ctk.CTkLabel(
             header_frame, text="HAD3M-EIA",
             font=ctk.CTkFont(size=18, weight="bold"),
-        ).pack(side="left")
+        ).pack(side="left")  # Brand name, not translated
 
         btn_new_ai = ctk.CTkButton(
-            self.sidebar, text="+ Yeni AI Oluştur",
+            self.sidebar, text=t("new_ai_btn"),
             fg_color="#8e44ad", hover_color="#7d3c98",
             command=self._open_persona_dialog,
         )
@@ -1753,7 +1746,7 @@ class MiniAgentApp(ctk.CTk):
         if not names:
             ctk.CTkLabel(
                 self.ai_list_frame,
-                text="Henüz AI yok.\n\n'+ Yeni AI Oluştur'\nbutonuna bas.",
+                text=t("no_ai_msg"),
                 text_color="gray", justify="center",
             ).pack(pady=20)
             return

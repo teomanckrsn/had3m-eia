@@ -155,6 +155,48 @@ TRANSLATIONS = {
         # Otonom tartışma
         "debate_complete": "Tartışma tamamlandı! Dosyalar: data/debates/",
         "debate_stopping": "Tartışma durduruluyor...",
+
+        # Create AI (form)
+        "create_ai_title": "🤖 Yeni AI Oluştur",
+        "create_ai_subtitle": "Kendi yapay zekanı oluştur. İsim ver, görev tanımını yaz.",
+        "ai_name_label": "İsim",
+        "ai_name_placeholder": "örn: Halime, Ayşe, Pazarlama Asistanı",
+        "ai_task_label": "Görev Tanımı (Prompt)",
+        "ai_task_hint": "Nasıl biri olmalı? Ne iş yapacak? Karakteri nasıl olsun?",
+        "ai_task_default": "Sen benim kişisel asistanımsın. Günlük işlerimde bana yardım ediyorsun. Organize, pratik ve çözüm odaklısın. Kısa ve net cevaplar verirsin.",
+        "create_btn": "✨ Oluştur",
+
+        # AI list sidebar
+        "ai_list_title": "🤖 Yapay Zekalar",
+        "new_ai_btn": "+ Yeni AI Oluştur",
+        "no_ai_msg": "Henüz AI yok.\n\n'+ Yeni AI Oluştur'\nbutonuna bas.",
+
+        # Chat window
+        "clear_history": "🗑 Geçmişi Temizle",
+        "search_history": "🔍 Geçmişte ara...",
+        "write_to": "'a yazın...",
+        "permissions_label": "Yetkiler:",
+
+        # Telegram
+        "telegram_title": "📱 Telegram Botu",
+        "telegram_desc": "AI'na telefondan Telegram üzerinden eriş.\nMesajlar internet üzerinden gider ama AI modeli yerelde kalır.",
+        "telegram_token_label": "Bot Token:",
+        "telegram_token_hint": "@BotFather'dan al (t.me/BotFather). /newbot komutu ile yeni bot oluştur.",
+        "telegram_start": "▶ Botu Başlat",
+        "telegram_stop": "⏹ Botu Durdur",
+        "telegram_btn": "📱 Telegram",
+        "telegram_running": "🟢 Bot çalışıyor",
+        "telegram_stopped": "⚫ Bot durdu",
+
+        # Settings
+        "settings_lang_section": "🌐 Dil",
+        "settings_model_section": "🧠 Model Yönetimi",
+        "settings_chat_model": "Sohbet:",
+        "settings_code_model": "Kod:",
+        "settings_installed_models": "Kurulu Modeller:",
+        "settings_downloadable": "⬇️ İndirilebilir Modeller",
+        "settings_download": "⬇️ İndir",
+        "settings_installed_badge": "✓ Kurulu",
     },
 
     "en": {
@@ -305,6 +347,48 @@ TRANSLATIONS = {
         # Auto debate
         "debate_complete": "Debate complete! Files: data/debates/",
         "debate_stopping": "Stopping debate...",
+
+        # Create AI (form)
+        "create_ai_title": "🤖 Create New AI",
+        "create_ai_subtitle": "Create your own AI. Give it a name and task.",
+        "ai_name_label": "Name",
+        "ai_name_placeholder": "e.g. Helen, Marketing Assistant",
+        "ai_task_label": "Task Description (Prompt)",
+        "ai_task_hint": "Who should it be? What should it do? How should it behave?",
+        "ai_task_default": "You are my personal assistant. You help me with daily tasks. You are organized, practical, and solution-focused. You give short and clear answers.",
+        "create_btn": "✨ Create",
+
+        # AI list sidebar
+        "ai_list_title": "🤖 AI Personas",
+        "new_ai_btn": "+ Create New AI",
+        "no_ai_msg": "No AI yet.\n\nClick '+ Create New AI'\nto start.",
+
+        # Chat window
+        "clear_history": "🗑 Clear History",
+        "search_history": "🔍 Search history...",
+        "write_to": "Write to ",
+        "permissions_label": "Permissions:",
+
+        # Telegram
+        "telegram_title": "📱 Telegram Bot",
+        "telegram_desc": "Access your AI from your phone via Telegram.\nMessages go through internet but the AI model stays local.",
+        "telegram_token_label": "Bot Token:",
+        "telegram_token_hint": "Get from @BotFather (t.me/BotFather). Use /newbot to create.",
+        "telegram_start": "▶ Start Bot",
+        "telegram_stop": "⏹ Stop Bot",
+        "telegram_btn": "📱 Telegram",
+        "telegram_running": "🟢 Bot is running",
+        "telegram_stopped": "⚫ Bot stopped",
+
+        # Settings
+        "settings_lang_section": "🌐 Language",
+        "settings_model_section": "🧠 Model Management",
+        "settings_chat_model": "Chat:",
+        "settings_code_model": "Code:",
+        "settings_installed_models": "Installed Models:",
+        "settings_downloadable": "⬇️ Downloadable Models",
+        "settings_download": "⬇️ Download",
+        "settings_installed_badge": "✓ Installed",
     },
 }
 
