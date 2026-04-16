@@ -1733,21 +1733,34 @@ class MiniAgentApp(ctk.CTk):
         except Exception as e:
             print(f"İkon yüklenemedi: {e}")
 
-    def _build_ui(self):
-        # İki sütun: sol sidebar (AI listesi), sağ ana içerik
-        self.grid_columnconfigure(1, weight=1)
-        self.grid_rowconfigure(2, weight=1)
+    @staticmethod
+    def _darken(hex_color: str, factor: float = 0.85) -> str:
+        """Rengi koyulaştır (hover efekti için)."""
+        try:
+            hex_color = hex_color.lstrip("#")
+            r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+            r = int(r * factor)
+            g = int(g * factor)
+            b = int(b * factor)
+            return f"#{r:02x}{g:02x}{b:02x}"
+        except Exception:
+            return hex_color
 
-        # === Sol sidebar: AI listesi ===
-        self.sidebar = ctk.CTkFrame(self, width=220, corner_radius=0)
-        self.sidebar.grid(row=0, column=0, rowspan=5, sticky="nsew", padx=0, pady=0)
+    def _build_ui(self):
+        """Modern UI: sidebar navigation + clean main area."""
+        self.grid_columnconfigure(1, weight=1)
+        self.grid_rowconfigure(1, weight=1)
+
+        # ========== SOL SIDEBAR ==========
+        self.sidebar = ctk.CTkFrame(self, width=260, corner_radius=0, fg_color="#1a1a2e")
+        self.sidebar.grid(row=0, column=0, rowspan=4, sticky="nsew")
         self.sidebar.grid_propagate(False)
         self.sidebar.grid_columnconfigure(0, weight=1)
-        self.sidebar.grid_rowconfigure(2, weight=1)
+        self.sidebar.grid_rowconfigure(4, weight=1)  # AI list alanı büyüsün
 
-        # Logo + başlık
+        # --- Logo + Marka ---
         header_frame = ctk.CTkFrame(self.sidebar, fg_color="transparent")
-        header_frame.grid(row=0, column=0, padx=15, pady=(15, 5), sticky="ew")
+        header_frame.grid(row=0, column=0, padx=20, pady=(20, 15), sticky="ew")
 
         try:
             from PIL import Image
@@ -1756,100 +1769,132 @@ class MiniAgentApp(ctk.CTk):
                 logo_img = ctk.CTkImage(
                     light_image=Image.open(icon_path),
                     dark_image=Image.open(icon_path),
-                    size=(48, 48),
+                    size=(44, 44),
                 )
-                ctk.CTkLabel(header_frame, image=logo_img, text="").pack(side="left", padx=(0, 8))
+                ctk.CTkLabel(header_frame, image=logo_img, text="").pack(side="left", padx=(0, 10))
         except Exception:
             pass
 
+        brand_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
+        brand_frame.pack(side="left", fill="y")
         ctk.CTkLabel(
-            header_frame, text="HAD3M-EIA",
-            font=ctk.CTkFont(size=18, weight="bold"),
-        ).pack(side="left")  # Brand name, not translated
+            brand_frame, text="HAD3M-EIA",
+            font=ctk.CTkFont(size=17, weight="bold"),
+        ).pack(anchor="w")
+        ctk.CTkLabel(
+            brand_frame, text="Yerel AI Asistan",
+            font=ctk.CTkFont(size=10),
+            text_color="#a0a0c0",
+        ).pack(anchor="w")
+
+        # --- Araçlar Section ---
+        tools_label = ctk.CTkLabel(
+            self.sidebar, text="ARAÇLAR",
+            font=ctk.CTkFont(size=10, weight="bold"),
+            text_color="#6c6c8a", anchor="w",
+        )
+        tools_label.grid(row=1, column=0, padx=20, pady=(5, 5), sticky="w")
+
+        tools_frame = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        tools_frame.grid(row=2, column=0, padx=12, pady=(0, 10), sticky="ew")
+        tools_frame.grid_columnconfigure((0, 1), weight=1)
+
+        # Tool butonları (2 sütunlu grid)
+        tools = [
+            ("📂", t("add_file"), "#3498db", self._add_files),
+            ("📁", t("file_manager"), "#d35400", self._open_file_manager),
+            ("🌐", t("browser"), "#2c3e50", self._open_browser),
+            ("💻", t("dev_team"), "#27ae60", self._open_dev_team),
+            ("👥", t("team_btn"), "#e67e22", self._open_team),
+            ("⏰", t("sched_btn"), "#16a085", self._open_schedule),
+            ("📱", t("telegram_btn"), "#3498db", self._open_telegram),
+            ("🔗", t("relationships"), "#9b59b6", self._open_relationships),
+        ]
+
+        for i, (icon, label, color, cmd) in enumerate(tools):
+            btn = ctk.CTkButton(
+                tools_frame,
+                text=f"{icon}  {label.split(' ', 1)[-1] if ' ' in label else label}",
+                fg_color=color, hover_color=self._darken(color),
+                anchor="w", height=36,
+                font=ctk.CTkFont(size=12),
+                command=cmd,
+            )
+            btn.grid(row=i // 2, column=i % 2, padx=3, pady=3, sticky="ew")
+
+        # --- AI Personas Section ---
+        ai_section_label = ctk.CTkLabel(
+            self.sidebar, text="YAPAY ZEKALAR",
+            font=ctk.CTkFont(size=10, weight="bold"),
+            text_color="#6c6c8a", anchor="w",
+        )
+        ai_section_label.grid(row=3, column=0, padx=20, pady=(10, 3), sticky="w")
 
         btn_new_ai = ctk.CTkButton(
-            self.sidebar, text=t("new_ai_btn"),
+            self.sidebar, text="+ " + t("new_ai_btn").replace("+ ", ""),
             fg_color="#8e44ad", hover_color="#7d3c98",
+            height=38, font=ctk.CTkFont(size=13, weight="bold"),
             command=self._open_persona_dialog,
         )
-        btn_new_ai.grid(row=1, column=0, padx=10, pady=(0, 10), sticky="ew")
+        btn_new_ai.grid(row=3, column=0, padx=12, pady=(28, 5), sticky="ew")
 
-        self.ai_list_frame = ctk.CTkScrollableFrame(self.sidebar, label_text="")
-        self.ai_list_frame.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
+        self.ai_list_frame = ctk.CTkScrollableFrame(
+            self.sidebar, label_text="", fg_color="transparent",
+        )
+        self.ai_list_frame.grid(row=4, column=0, sticky="nsew", padx=8, pady=5)
         self.ai_list_frame.grid_columnconfigure(0, weight=1)
 
-        # === Üst bar ===
-        top_frame = ctk.CTkFrame(self)
-        top_frame.grid(row=0, column=1, sticky="ew", padx=10, pady=(10, 5))
-        top_frame.grid_columnconfigure(11, weight=1)
-
-        self.btn_add = ctk.CTkButton(
-            top_frame, text=t("add_file"), width=110, command=self._add_files
-        )
-        self.btn_add.grid(row=0, column=0, padx=3, pady=5)
+        # --- Alt bar: Ayarlar ---
+        bottom_frame = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        bottom_frame.grid(row=5, column=0, padx=12, pady=(5, 15), sticky="ew")
+        bottom_frame.grid_columnconfigure(0, weight=1)
 
         self.btn_clear = ctk.CTkButton(
-            top_frame, text=t("clear"), width=70, fg_color="gray",
-            command=self._clear_files
+            bottom_frame, text="🗑", width=40, fg_color="#c0392b",
+            hover_color="#a93226", command=self._clear_files,
         )
-        self.btn_clear.grid(row=0, column=1, padx=3, pady=5)
-
-        self.btn_new_persona = ctk.CTkButton(
-            top_frame, text=t("create_ai"), width=100, fg_color="#8e44ad",
-            command=self._open_persona_dialog
-        )
-        self.btn_new_persona.grid(row=0, column=2, padx=3, pady=5)
-
-        self.btn_relationships = ctk.CTkButton(
-            top_frame, text=t("relationships"), width=90, fg_color="#e67e22",
-            command=self._open_relationships
-        )
-        self.btn_relationships.grid(row=0, column=3, padx=3, pady=5)
-
-        self.btn_file_mgr = ctk.CTkButton(
-            top_frame, text=t("file_manager"), width=70, fg_color="#d35400",
-            command=self._open_file_manager
-        )
-        self.btn_file_mgr.grid(row=0, column=4, padx=3, pady=5)
-
-        self.btn_browser = ctk.CTkButton(
-            top_frame, text=t("browser"), width=85, fg_color="#2c3e50",
-            command=self._open_browser
-        )
-        self.btn_browser.grid(row=0, column=5, padx=3, pady=5)
-
-        self.btn_dev_team = ctk.CTkButton(
-            top_frame, text=t("dev_team"), width=70, fg_color="#2ecc71",
-            command=self._open_dev_team
-        )
-        self.btn_dev_team.grid(row=0, column=6, padx=3, pady=5)
-
-        self.btn_telegram = ctk.CTkButton(
-            top_frame, text=t("telegram_btn"), width=95, fg_color="#3498db",
-            command=self._open_telegram
-        )
-        self.btn_telegram.grid(row=0, column=7, padx=3, pady=5)
-
-        self.btn_schedule = ctk.CTkButton(
-            top_frame, text=t("sched_btn"), width=90, fg_color="#16a085",
-            command=self._open_schedule
-        )
-        self.btn_schedule.grid(row=0, column=8, padx=3, pady=5)
-
-        self.btn_team = ctk.CTkButton(
-            top_frame, text=t("team_btn"), width=80, fg_color="#d35400",
-            command=self._open_team
-        )
-        self.btn_team.grid(row=0, column=9, padx=3, pady=5)
+        self.btn_clear.pack(side="right", padx=3)
 
         self.btn_settings = ctk.CTkButton(
-            top_frame, text=t("settings_btn"), width=70, fg_color="#7f8c8d",
-            command=self._open_settings
+            bottom_frame, text="⚙️  " + t("settings"),
+            fg_color="#2c3e50", hover_color="#1c2833",
+            anchor="w", command=self._open_settings,
         )
-        self.btn_settings.grid(row=0, column=10, padx=3, pady=5)
+        self.btn_settings.pack(side="left", fill="x", expand=True, padx=3)
 
-        self.file_label = ctk.CTkLabel(top_frame, text=t("no_files"), anchor="w")
-        self.file_label.grid(row=0, column=11, padx=10, pady=5, sticky="w")
+        # ========== ANA ALAN ==========
+        # Üst: aktif AI/mod bilgisi
+        top_frame = ctk.CTkFrame(self, height=55, corner_radius=0, fg_color="#25253a")
+        top_frame.grid(row=0, column=1, sticky="ew")
+        top_frame.grid_propagate(False)
+        top_frame.grid_columnconfigure(0, weight=1)
+
+        self.file_label = ctk.CTkLabel(
+            top_frame, text="💬  " + t("chat_mode").replace("💬 ", ""),
+            font=ctk.CTkFont(size=15, weight="bold"),
+            anchor="w", padx=20,
+        )
+        self.file_label.grid(row=0, column=0, sticky="w", pady=12)
+
+        # Gizli butonlar (backwards compat)
+        self.btn_add = ctk.CTkButton(self, text="", width=0, height=0)
+        self.btn_add.grid_forget()
+        self.btn_new_persona = ctk.CTkButton(self, text="", width=0, height=0)
+        self.btn_new_persona.grid_forget()
+        self.btn_relationships = ctk.CTkButton(self, text="", width=0, height=0)
+        self.btn_relationships.grid_forget()
+        self.btn_file_mgr = ctk.CTkButton(self, text="", width=0, height=0)
+        self.btn_file_mgr.grid_forget()
+        self.btn_browser = ctk.CTkButton(self, text="", width=0, height=0)
+        self.btn_browser.grid_forget()
+        self.btn_dev_team = ctk.CTkButton(self, text="", width=0, height=0)
+        self.btn_dev_team.grid_forget()
+        self.btn_telegram = ctk.CTkButton(self, text="", width=0, height=0)
+        self.btn_telegram.grid_forget()
+        self.btn_schedule = ctk.CTkButton(self, text="", width=0, height=0)
+        self.btn_schedule.grid_forget()
+        self.btn_team = ctk.CTkButton(self, text="", width=0, height=0)
+        self.btn_team.grid_forget()
 
         # === Mod seçimi + kişilik seçiciler ===
         mode_frame = ctk.CTkFrame(self)
