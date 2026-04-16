@@ -1025,6 +1025,129 @@ class DevTeamDialog(ctk.CTkToplevel):
         threading.Thread(target=work, daemon=True).start()
 
 
+class MultiTeamDialog(ctk.CTkToplevel):
+    """Senin AI'larından takım oluştur, ortak görev ver."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title(t("team_title"))
+        self.geometry("750x650")
+        self.transient(parent)
+
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(4, weight=1)
+
+        # Bilgi
+        ctk.CTkLabel(
+            self, text=t("team_title"),
+            font=ctk.CTkFont(size=18, weight="bold"),
+        ).grid(row=0, column=0, padx=20, pady=(15, 5), sticky="w")
+
+        ctk.CTkLabel(
+            self, text="Seçtiğin AI'lar sırayla görev üzerinde çalışır. Sonunda moderatör özet hazırlar.",
+            text_color="gray",
+        ).grid(row=1, column=0, padx=20, pady=(0, 10), sticky="w")
+
+        # AI seçimi
+        select_frame = ctk.CTkFrame(self)
+        select_frame.grid(row=2, column=0, sticky="ew", padx=15, pady=5)
+        select_frame.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            select_frame, text=t("team_select"),
+            font=ctk.CTkFont(weight="bold"),
+        ).grid(row=0, column=0, padx=15, pady=(10, 3), sticky="w")
+
+        ai_list_frame = ctk.CTkFrame(select_frame, fg_color="transparent")
+        ai_list_frame.grid(row=1, column=0, padx=15, pady=(0, 10), sticky="ew")
+
+        self.ai_vars = {}
+        names = get_personality_names()
+        if not names:
+            ctk.CTkLabel(
+                ai_list_frame, text="Henüz AI oluşturulmamış.",
+                text_color="gray",
+            ).pack()
+        else:
+            for name in names:
+                var = tk.BooleanVar(value=False)
+                self.ai_vars[name] = var
+                ctk.CTkCheckBox(ai_list_frame, text=name, variable=var).pack(
+                    side="left", padx=8, pady=5
+                )
+
+        # Görev
+        task_frame = ctk.CTkFrame(self)
+        task_frame.grid(row=3, column=0, sticky="ew", padx=15, pady=5)
+        task_frame.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            task_frame, text=t("team_task"),
+            font=ctk.CTkFont(weight="bold"),
+        ).grid(row=0, column=0, padx=15, pady=(10, 3), sticky="w")
+
+        self.task_text = ctk.CTkTextbox(task_frame, height=70)
+        self.task_text.grid(row=1, column=0, padx=15, pady=(0, 5), sticky="ew")
+        self.task_text.insert("1.0", "Yeni ürün lansmanı stratejisi için fikirler ver")
+
+        self.btn_start = ctk.CTkButton(
+            task_frame, text=t("team_start"), height=40, fg_color="#8e44ad",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            command=self._start,
+        )
+        self.btn_start.grid(row=2, column=0, padx=15, pady=10, sticky="ew")
+
+        # Çıktı
+        self.output_frame = ctk.CTkScrollableFrame(self, label_text="Takım Çıktısı")
+        self.output_frame.grid(row=4, column=0, sticky="nsew", padx=10, pady=(5, 10))
+        self.output_frame.grid_columnconfigure(0, weight=1)
+
+    def _add_output(self, ai_name: str, text: str, color: str):
+        frame = ctk.CTkFrame(self.output_frame, fg_color=color, corner_radius=10)
+        frame.pack(fill="x", padx=5, pady=3)
+
+        ctk.CTkLabel(
+            frame, text=f"🤖 {ai_name}",
+            font=ctk.CTkFont(weight="bold", size=12),
+            anchor="w", padx=12, pady=(6, 0),
+        ).pack(fill="x")
+
+        ctk.CTkLabel(
+            frame, text=text, wraplength=650, justify="left",
+            anchor="w", padx=12, pady=(2, 8),
+        ).pack(fill="x")
+
+        self.output_frame._parent_canvas.yview_moveto(1.0)
+
+    def _start(self):
+        selected = [name for name, v in self.ai_vars.items() if v.get()]
+        task = self.task_text.get("1.0", "end").strip()
+
+        if len(selected) < 2:
+            self._add_output("⚠️", "En az 2 AI seç!", "gray")
+            return
+        if not task:
+            return
+
+        self.btn_start.configure(state="disabled", text="Çalışıyor...")
+
+        def on_msg(ai_name, msg, color):
+            self.after(0, lambda n=ai_name, m=msg, c=color: self._add_output(n, m, c))
+
+        def work():
+            try:
+                from multi_ai_team import run_team_task
+                run_team_task(selected, task, on_message=on_msg)
+            except Exception as e:
+                self.after(0, lambda: self._add_output("❌ Hata", str(e), "#c0392b"))
+            finally:
+                self.after(0, lambda: self.btn_start.configure(
+                    state="normal", text=t("team_start")
+                ))
+
+        threading.Thread(target=work, daemon=True).start()
+
+
 class ScheduleDialog(ctk.CTkToplevel):
     """Zamanlanmış görevleri yönet."""
 
@@ -1658,7 +1781,7 @@ class MiniAgentApp(ctk.CTk):
         # === Üst bar ===
         top_frame = ctk.CTkFrame(self)
         top_frame.grid(row=0, column=1, sticky="ew", padx=10, pady=(10, 5))
-        top_frame.grid_columnconfigure(10, weight=1)
+        top_frame.grid_columnconfigure(11, weight=1)
 
         self.btn_add = ctk.CTkButton(
             top_frame, text=t("add_file"), width=110, command=self._add_files
@@ -1713,14 +1836,20 @@ class MiniAgentApp(ctk.CTk):
         )
         self.btn_schedule.grid(row=0, column=8, padx=3, pady=5)
 
+        self.btn_team = ctk.CTkButton(
+            top_frame, text=t("team_btn"), width=80, fg_color="#d35400",
+            command=self._open_team
+        )
+        self.btn_team.grid(row=0, column=9, padx=3, pady=5)
+
         self.btn_settings = ctk.CTkButton(
             top_frame, text=t("settings_btn"), width=70, fg_color="#7f8c8d",
             command=self._open_settings
         )
-        self.btn_settings.grid(row=0, column=9, padx=3, pady=5)
+        self.btn_settings.grid(row=0, column=10, padx=3, pady=5)
 
         self.file_label = ctk.CTkLabel(top_frame, text=t("no_files"), anchor="w")
-        self.file_label.grid(row=0, column=10, padx=10, pady=5, sticky="w")
+        self.file_label.grid(row=0, column=11, padx=10, pady=5, sticky="w")
 
         # === Mod seçimi + kişilik seçiciler ===
         mode_frame = ctk.CTkFrame(self)
@@ -1879,6 +2008,9 @@ class MiniAgentApp(ctk.CTk):
 
     def _open_schedule(self):
         ScheduleDialog(self, self.scheduler)
+
+    def _open_team(self):
+        MultiTeamDialog(self)
 
     def _open_relationships(self):
         RelationshipDialog(self)
