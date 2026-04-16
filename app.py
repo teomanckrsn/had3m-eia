@@ -1025,6 +1025,146 @@ class DevTeamDialog(ctk.CTkToplevel):
         threading.Thread(target=work, daemon=True).start()
 
 
+class ScheduleDialog(ctk.CTkToplevel):
+    """Zamanlanmış görevleri yönet."""
+
+    def __init__(self, parent, scheduler):
+        super().__init__(parent)
+        self.scheduler = scheduler
+        self.title(t("sched_title"))
+        self.geometry("700x600")
+        self.transient(parent)
+
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(2, weight=1)
+
+        # Yeni görev formu
+        form = ctk.CTkFrame(self)
+        form.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 5))
+        form.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(
+            form, text=t("sched_new"),
+            font=ctk.CTkFont(size=15, weight="bold"),
+        ).grid(row=0, column=0, columnspan=4, padx=15, pady=(10, 5), sticky="w")
+
+        ctk.CTkLabel(form, text=t("sched_name")).grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        self.name_entry = ctk.CTkEntry(form, placeholder_text="ör: Sabah haberleri")
+        self.name_entry.grid(row=1, column=1, columnspan=3, padx=5, pady=5, sticky="ew")
+
+        ctk.CTkLabel(form, text=t("sched_ai")).grid(row=2, column=0, padx=10, pady=5, sticky="w")
+        names = get_personality_names() or ["— AI yok —"]
+        self.ai_var = tk.StringVar(value=names[0])
+        self.ai_combo = ctk.CTkComboBox(form, values=names, variable=self.ai_var, width=250)
+        self.ai_combo.grid(row=2, column=1, columnspan=3, padx=5, pady=5, sticky="ew")
+
+        ctk.CTkLabel(form, text=t("sched_prompt")).grid(row=3, column=0, padx=10, pady=5, sticky="nw")
+        self.prompt_text = ctk.CTkTextbox(form, height=60)
+        self.prompt_text.grid(row=3, column=1, columnspan=3, padx=5, pady=5, sticky="ew")
+        self.prompt_text.insert("1.0", "Bugün için önemli hatırlatmalarımı özetle")
+
+        ctk.CTkLabel(form, text=t("sched_time")).grid(row=4, column=0, padx=10, pady=5, sticky="w")
+        self.time_entry = ctk.CTkEntry(form, placeholder_text="09:00", width=100)
+        self.time_entry.insert(0, "09:00")
+        self.time_entry.grid(row=4, column=1, padx=5, pady=5, sticky="w")
+
+        # Günler
+        ctk.CTkLabel(form, text=t("sched_days")).grid(row=5, column=0, padx=10, pady=5, sticky="w")
+        days_frame = ctk.CTkFrame(form, fg_color="transparent")
+        days_frame.grid(row=5, column=1, columnspan=3, padx=5, pady=5, sticky="w")
+
+        from scheduler import DAYS
+        self.day_vars = []
+        for i, day in enumerate(DAYS):
+            var = tk.BooleanVar(value=(i < 5))  # Hafta içi varsayılan
+            self.day_vars.append(var)
+            ctk.CTkCheckBox(days_frame, text=day, variable=var, width=60).pack(side="left", padx=3)
+
+        ctk.CTkButton(
+            form, text=t("sched_add"), fg_color="#27ae60", command=self._add_task, height=35,
+        ).grid(row=6, column=0, columnspan=4, padx=15, pady=10, sticky="ew")
+
+        # Liste
+        ctk.CTkLabel(
+            self, text=t("sched_title"),
+            font=ctk.CTkFont(size=14, weight="bold"),
+        ).grid(row=1, column=0, padx=15, pady=(10, 5), sticky="w")
+
+        self.list_frame = ctk.CTkScrollableFrame(self)
+        self.list_frame.grid(row=2, column=0, sticky="nsew", padx=10, pady=(0, 10))
+        self.list_frame.grid_columnconfigure(0, weight=1)
+
+        self._refresh_list()
+
+    def _add_task(self):
+        name = self.name_entry.get().strip()
+        ai = self.ai_var.get()
+        prompt = self.prompt_text.get("1.0", "end").strip()
+        time_str = self.time_entry.get().strip()
+        days = [i for i, v in enumerate(self.day_vars) if v.get()]
+
+        if not name or not prompt or not days or ai.startswith("—"):
+            return
+
+        # Basit zaman validasyonu
+        try:
+            h, m = time_str.split(":")
+            int(h); int(m)
+        except Exception:
+            return
+
+        self.scheduler.add_task(name, ai, prompt, time_str, days)
+        self.name_entry.delete(0, "end")
+        self.prompt_text.delete("1.0", "end")
+        self._refresh_list()
+
+    def _refresh_list(self):
+        for w in self.list_frame.winfo_children():
+            w.destroy()
+
+        tasks = self.scheduler.get_tasks()
+        if not tasks:
+            ctk.CTkLabel(
+                self.list_frame, text=t("sched_no_tasks"),
+                text_color="gray",
+            ).pack(pady=20)
+            return
+
+        for task in tasks:
+            card = ctk.CTkFrame(self.list_frame, corner_radius=8)
+            card.pack(fill="x", pady=4, padx=5)
+            card.grid_columnconfigure(0, weight=1)
+
+            from scheduler import format_task
+            ctk.CTkLabel(
+                card, text=format_task(task), justify="left", anchor="w",
+                padx=10, pady=8,
+            ).grid(row=0, column=0, sticky="w")
+
+            btn_frame = ctk.CTkFrame(card, fg_color="transparent")
+            btn_frame.grid(row=0, column=1, padx=10, pady=5)
+
+            toggle_text = t("sched_enabled") if task.get("enabled") else t("sched_disabled")
+            toggle_color = "#27ae60" if task.get("enabled") else "gray"
+            ctk.CTkButton(
+                btn_frame, text=toggle_text, width=70, fg_color=toggle_color,
+                command=lambda tid=task["id"]: self._toggle(tid),
+            ).pack(side="left", padx=3)
+
+            ctk.CTkButton(
+                btn_frame, text="🗑", width=35, fg_color="#c0392b",
+                command=lambda tid=task["id"]: self._remove(tid),
+            ).pack(side="left", padx=3)
+
+    def _toggle(self, task_id):
+        self.scheduler.toggle_task(task_id)
+        self._refresh_list()
+
+    def _remove(self, task_id):
+        self.scheduler.remove_task(task_id)
+        self._refresh_list()
+
+
 class TelegramDialog(ctk.CTkToplevel):
     """Telegram botu başlat/durdur + token yönetimi."""
 
@@ -1428,8 +1568,34 @@ class MiniAgentApp(ctk.CTk):
         self.current_answer = ""
         self.current_question = ""
 
+        # Scheduler — arka planda çalışan zamanlayıcı
+        from scheduler import Scheduler
+        self.scheduler = Scheduler(on_trigger=self._on_scheduled_trigger)
+        self.scheduler.start()
+
         self._build_ui()
         self._init_engine()
+
+    def _on_scheduled_trigger(self, task: dict):
+        """Zamanlanmış görev tetiklendiğinde AI'a gönder, sonucu geçmişe yaz."""
+        import ollama
+        from chat_history import ChatHistory
+        try:
+            ai_name = task["ai_name"]
+            prompt = task["prompt"]
+            history = ChatHistory(ai_name)
+            history.add_message("user", f"[⏰ Zamanlanmış: {task['name']}]\n{prompt}")
+
+            system_prompt = persona_manager.get_system_prompt(ai_name)
+            msgs = [{"role": "system", "content": system_prompt}]
+            msgs.extend(history.get_for_llm(max_messages=10))
+
+            response = ollama.chat(model=get_chat_model(), messages=msgs)
+            answer = response["message"]["content"]
+            history.add_message("assistant", answer)
+            self._update_status(f"⏰ {task['name']} çalıştı → {ai_name}")
+        except Exception as e:
+            self._update_status(f"⏰ Görev hatası: {e}")
 
     def _set_icon(self):
         """Uygulama ikonunu ayarla (macOS, Windows, Linux)."""
@@ -1492,7 +1658,7 @@ class MiniAgentApp(ctk.CTk):
         # === Üst bar ===
         top_frame = ctk.CTkFrame(self)
         top_frame.grid(row=0, column=1, sticky="ew", padx=10, pady=(10, 5))
-        top_frame.grid_columnconfigure(9, weight=1)
+        top_frame.grid_columnconfigure(10, weight=1)
 
         self.btn_add = ctk.CTkButton(
             top_frame, text=t("add_file"), width=110, command=self._add_files
@@ -1536,19 +1702,25 @@ class MiniAgentApp(ctk.CTk):
         self.btn_dev_team.grid(row=0, column=6, padx=3, pady=5)
 
         self.btn_telegram = ctk.CTkButton(
-            top_frame, text="📱 Telegram", width=95, fg_color="#3498db",
+            top_frame, text=t("telegram_btn"), width=95, fg_color="#3498db",
             command=self._open_telegram
         )
         self.btn_telegram.grid(row=0, column=7, padx=3, pady=5)
+
+        self.btn_schedule = ctk.CTkButton(
+            top_frame, text=t("sched_btn"), width=90, fg_color="#16a085",
+            command=self._open_schedule
+        )
+        self.btn_schedule.grid(row=0, column=8, padx=3, pady=5)
 
         self.btn_settings = ctk.CTkButton(
             top_frame, text=t("settings_btn"), width=70, fg_color="#7f8c8d",
             command=self._open_settings
         )
-        self.btn_settings.grid(row=0, column=8, padx=3, pady=5)
+        self.btn_settings.grid(row=0, column=9, padx=3, pady=5)
 
         self.file_label = ctk.CTkLabel(top_frame, text=t("no_files"), anchor="w")
-        self.file_label.grid(row=0, column=9, padx=10, pady=5, sticky="w")
+        self.file_label.grid(row=0, column=10, padx=10, pady=5, sticky="w")
 
         # === Mod seçimi + kişilik seçiciler ===
         mode_frame = ctk.CTkFrame(self)
@@ -1704,6 +1876,9 @@ class MiniAgentApp(ctk.CTk):
 
     def _open_telegram(self):
         TelegramDialog(self)
+
+    def _open_schedule(self):
+        ScheduleDialog(self, self.scheduler)
 
     def _open_relationships(self):
         RelationshipDialog(self)
