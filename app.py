@@ -1964,8 +1964,6 @@ class MiniAgentApp(ctk.CTk):
 
         self.auto_debate = None
 
-        self._on_mode_change()
-
         # === Sohbet alanı ===
         self.chat_frame = ctk.CTkScrollableFrame(self, label_text=t("chat_label"))
         self.chat_frame.grid(row=2, column=1, sticky="nsew", padx=10, pady=5)
@@ -1991,6 +1989,9 @@ class MiniAgentApp(ctk.CTk):
         # === Durum çubuğu ===
         self.status_label = ctk.CTkLabel(self, text="Başlatılıyor...", anchor="w")
         self.status_label.grid(row=4, column=1, sticky="ew", padx=15, pady=(0, 5))
+
+        # input_entry oluştuktan sonra mod değişikliği
+        self._on_mode_change()
 
         # AI listesini başlangıçta doldur
         self._refresh_ai_list()
