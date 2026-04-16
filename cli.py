@@ -7,7 +7,7 @@ import readline
 from rag_engine import RAGEngine
 from debate import debate, get_personality_names, persona_manager
 from dev_team import DevProject, dev_team_work, get_team_roles, TEAM_ROLES
-from model_config import detect_models, get_chat_model, get_vision_model
+from model_config import detect_models, get_chat_model
 from file_manager import FileManager
 
 
@@ -54,8 +54,7 @@ def main():
 
     config = detect_models()
     chat_model = config.get("chat_model", "?")
-    vision_model = config.get("vision_model", "yok")
-    print(f"{GREEN}Sohbet: {chat_model} | Görsel: {vision_model or 'yok'}{RESET}")
+    print(f"{GREEN}Sohbet modeli: {chat_model}{RESET}")
 
     print(f"{DIM}Engine başlatılıyor...{RESET}")
     engine = RAGEngine(on_status=lambda m: print(f"  {DIM}{m}{RESET}"))
@@ -164,7 +163,6 @@ def main():
                     print(f"Kurulu modeller: {', '.join(config['installed_models'])}")
                     print(f"Sohbet: {config['chat_model']}")
                     print(f"Kod: {config['code_model']}")
-                    print(f"Görsel: {config['vision_model'] or 'yok'}")
 
                 else:
                     print(f"{RED}Bilinmeyen komut. /yardim yaz.{RESET}")
