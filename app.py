@@ -467,7 +467,7 @@ class RelationshipDialog(ctk.CTkToplevel):
 
     def __init__(self, parent):
         super().__init__(parent)
-        self.title("Kişilik İlişkileri")
+        self.title(t("rel_title"))
         self.geometry("600x500")
         self.transient(parent)
 
@@ -479,31 +479,28 @@ class RelationshipDialog(ctk.CTkToplevel):
         add_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 5))
         add_frame.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkLabel(add_frame, text="🔗 İlişki Tanımla", font=ctk.CTkFont(weight="bold")).grid(
+        ctk.CTkLabel(add_frame, text=t("rel_define"), font=ctk.CTkFont(weight="bold")).grid(
             row=0, column=0, columnspan=4, padx=10, pady=(5, 2), sticky="w"
         )
 
         names = get_personality_names()
 
-        ctk.CTkLabel(add_frame, text="Kim:").grid(row=1, column=0, padx=10, pady=5)
+        ctk.CTkLabel(add_frame, text=t("rel_who")).grid(row=1, column=0, padx=10, pady=5)
         self.from_var = tk.StringVar(value=names[0] if names else "")
         self.from_combo = ctk.CTkComboBox(add_frame, values=names, variable=self.from_var, width=160)
         self.from_combo.grid(row=1, column=1, padx=5, pady=5)
 
-        ctk.CTkLabel(add_frame, text="→ Kime:").grid(row=1, column=2, padx=5, pady=5)
+        ctk.CTkLabel(add_frame, text=t("rel_to_whom")).grid(row=1, column=2, padx=5, pady=5)
         self.to_var = tk.StringVar(value=names[1] if len(names) > 1 else "")
         self.to_combo = ctk.CTkComboBox(add_frame, values=names, variable=self.to_var, width=160)
         self.to_combo.grid(row=1, column=3, padx=5, pady=5)
 
-        ctk.CTkLabel(add_frame, text="Düşüncesi:").grid(row=2, column=0, padx=10, pady=5)
-        self.opinion_entry = ctk.CTkEntry(
-            add_frame,
-            placeholder_text="ör: Çok temkinli buluyorum, bazen fırsat kaçırıyoruz yüzünden",
-        )
+        ctk.CTkLabel(add_frame, text=t("rel_opinion")).grid(row=2, column=0, padx=10, pady=5)
+        self.opinion_entry = ctk.CTkEntry(add_frame)
         self.opinion_entry.grid(row=2, column=1, columnspan=3, padx=5, pady=5, sticky="ew")
 
         ctk.CTkButton(
-            add_frame, text="İlişki Kaydet", fg_color="#27ae60", command=self._save_relationship
+            add_frame, text=t("rel_save"), fg_color="#27ae60", command=self._save_relationship
         ).grid(row=3, column=0, columnspan=4, pady=10)
 
         # === Durum ===
@@ -511,7 +508,7 @@ class RelationshipDialog(ctk.CTkToplevel):
         self.status_label.grid(row=1, column=0, sticky="ew", padx=15, pady=5)
 
         # === Mevcut ilişkiler ===
-        ctk.CTkLabel(self, text="Mevcut İlişkiler:", font=ctk.CTkFont(weight="bold")).grid(
+        ctk.CTkLabel(self, text=t("rel_list_title"), font=ctk.CTkFont(weight="bold")).grid(
             row=2, column=0, sticky="w", padx=15, pady=(10, 0)
         )
         self.rel_text = ctk.CTkTextbox(self, height=200)
@@ -549,7 +546,7 @@ class RelationshipDialog(ctk.CTkToplevel):
                     self.rel_text.insert("end", f"   → {to_name}: \"{opinion}\"\n")
                 self.rel_text.insert("end", "\n")
         if not has_any:
-            self.rel_text.insert("1.0", "Henüz ilişki tanımlanmamış.\n\nÖrnek:\nŞirket Yöneticisi → Finans Müdürü: \"Çok temkinli, bazen fırsatları kaçırıyoruz\"\nFinans Müdürü → Şirket Yöneticisi: \"Çok hırslı, riskleri görmezden geliyor\"")
+            self.rel_text.insert("1.0", t("rel_no_relations"))
 
 
 class FileManagerDialog(ctk.CTkToplevel):
@@ -557,7 +554,7 @@ class FileManagerDialog(ctk.CTkToplevel):
 
     def __init__(self, parent, file_mgr: FileManager):
         super().__init__(parent)
-        self.title("Dosya Yöneticisi")
+        self.title(t("fm_title"))
         self.geometry("600x500")
         self.transient(parent)
         self.grab_set()
@@ -571,30 +568,30 @@ class FileManagerDialog(ctk.CTkToplevel):
         move_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 5))
         move_frame.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkLabel(move_frame, text="📦 Dosya Taşı", font=ctk.CTkFont(weight="bold")).grid(
+        ctk.CTkLabel(move_frame, text=t("fm_move_section"), font=ctk.CTkFont(weight="bold")).grid(
             row=0, column=0, columnspan=3, padx=10, pady=(5, 2), sticky="w"
         )
 
-        ctk.CTkLabel(move_frame, text="Kaynak:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
-        self.source_entry = ctk.CTkEntry(move_frame, placeholder_text="Taşınacak dosyanın yolu")
+        ctk.CTkLabel(move_frame, text=t("fm_source")).grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        self.source_entry = ctk.CTkEntry(move_frame)
         self.source_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
-        ctk.CTkButton(move_frame, text="Seç", width=50, command=self._pick_source).grid(
+        ctk.CTkButton(move_frame, text=t("fm_select"), width=50, command=self._pick_source).grid(
             row=1, column=2, padx=5, pady=5
         )
 
-        ctk.CTkLabel(move_frame, text="Hedef:").grid(row=2, column=0, padx=10, pady=5, sticky="w")
-        self.dest_entry = ctk.CTkEntry(move_frame, placeholder_text="Hedef klasör yolu")
+        ctk.CTkLabel(move_frame, text=t("fm_destination")).grid(row=2, column=0, padx=10, pady=5, sticky="w")
+        self.dest_entry = ctk.CTkEntry(move_frame)
         self.dest_entry.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
-        ctk.CTkButton(move_frame, text="Seç", width=50, command=self._pick_dest).grid(
+        ctk.CTkButton(move_frame, text=t("fm_select"), width=50, command=self._pick_dest).grid(
             row=2, column=2, padx=5, pady=5
         )
 
         btn_frame = ctk.CTkFrame(move_frame, fg_color="transparent")
         btn_frame.grid(row=3, column=0, columnspan=3, pady=5)
 
-        ctk.CTkButton(btn_frame, text="Taşı", width=100, command=self._do_move).pack(side="left", padx=5)
+        ctk.CTkButton(btn_frame, text=t("fm_move"), width=100, command=self._do_move).pack(side="left", padx=5)
         ctk.CTkButton(
-            btn_frame, text="↩ Geri Al", width=100, fg_color="#e67e22", command=self._do_undo
+            btn_frame, text=t("fm_undo"), width=100, fg_color="#e67e22", command=self._do_undo
         ).pack(side="left", padx=5)
 
         # === Dosya oluşturma bölümü ===
@@ -602,13 +599,13 @@ class FileManagerDialog(ctk.CTkToplevel):
         create_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=5)
         create_frame.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkLabel(create_frame, text="📝 Yeni Dosya / Klasör Oluştur", font=ctk.CTkFont(weight="bold")).grid(
+        ctk.CTkLabel(create_frame, text=t("fm_create_section"), font=ctk.CTkFont(weight="bold")).grid(
             row=0, column=0, columnspan=3, padx=10, pady=(5, 2), sticky="w"
         )
 
-        ctk.CTkLabel(create_frame, text="Yol:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        ctk.CTkLabel(create_frame, text=t("fm_path")).grid(row=1, column=0, padx=10, pady=5, sticky="w")
         self.create_path_entry = ctk.CTkEntry(
-            create_frame, placeholder_text="ör: ~/Desktop/notlar/yeni_dosya.txt"
+            create_frame, placeholder_text="~/Desktop/notes/new_file.txt"
         )
         self.create_path_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
 
@@ -616,11 +613,11 @@ class FileManagerDialog(ctk.CTkToplevel):
         create_btn_frame.grid(row=2, column=0, columnspan=2, pady=5)
 
         ctk.CTkButton(
-            create_btn_frame, text="📄 Dosya Oluştur", width=130, fg_color="#27ae60",
+            create_btn_frame, text=t("fm_create_file"), width=140, fg_color="#27ae60",
             command=self._do_create_file
         ).pack(side="left", padx=5)
         ctk.CTkButton(
-            create_btn_frame, text="📁 Klasör Oluştur", width=130, fg_color="#2980b9",
+            create_btn_frame, text=t("fm_create_folder"), width=140, fg_color="#2980b9",
             command=self._do_create_folder
         ).pack(side="left", padx=5)
 
@@ -629,7 +626,7 @@ class FileManagerDialog(ctk.CTkToplevel):
         self.result_label.grid(row=2, column=0, sticky="ew", padx=15, pady=5)
 
         # === Taşıma geçmişi ===
-        ctk.CTkLabel(self, text="Taşıma Geçmişi:", font=ctk.CTkFont(weight="bold")).grid(
+        ctk.CTkLabel(self, text=t("fm_history"), font=ctk.CTkFont(weight="bold")).grid(
             row=3, column=0, sticky="nw", padx=15, pady=(5, 0)
         )
         self.history_text = ctk.CTkTextbox(self, height=120)
@@ -700,7 +697,7 @@ class BrowserDialog(ctk.CTkToplevel):
 
     def __init__(self, parent):
         super().__init__(parent)
-        self.title("HAD3M-EIA — Tarayıcı Agent")
+        self.title(t("br_title"))
         self.geometry("750x650")
         self.transient(parent)
 
@@ -900,7 +897,7 @@ class DevTeamDialog(ctk.CTkToplevel):
 
     def __init__(self, parent):
         super().__init__(parent)
-        self.title("HAD3M-EIA — Geliştirme Ekibi")
+        self.title(t("dt_title"))
         self.geometry("850x700")
         self.transient(parent)
 
